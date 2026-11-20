@@ -1,0 +1,11 @@
+{
+  "name": "comb-db-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:schema": "node schema.test.mjs ../migrations/20261120231817_init_schema.sql"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.17"
+  }
+}
