@@ -2,7 +2,7 @@
 
 import { addDays, canWithdraw, localDate, sha256Hex } from '../../_shared/engine/index.ts';
 
-export const OPERATOR_NAME = 'Operatorul demo'; // provizoriu, pana alege David numele (la fel ca in seed)
+export const OPERATOR_NAME = 'Telvia (demo)'; // numele operatorului fictiv ales de David (21.11, 14:20); seed-ul vechi are 'Operatorul demo'
 export const REVIEW_ETA_TEXT = 'Un coleg revine in 24 de ore.';
 
 // ---------- Revizuire umana (art. 18(8)) ----------
