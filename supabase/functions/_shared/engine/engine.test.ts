@@ -334,3 +334,77 @@ test('Ratele din banca pot duce la respingere (DTI peste 40%)', () => {
 test('engine-v3', () => {
   assert.equal(A({ ...ana }).engine_version, 'engine-v3');
 });
+
+// ---------- Rata ratata (art. 35), decizii 21.11, 15:55 si 16:20 (Varianta A) ----------
+import { contractSchedule, deferOneMonth, forbearanceOptions, missedInstallment, reschedule, type ContractTerms } from './index.ts';
+
+const ANA_C: ContractTerms = { principal_lei: 2199, nominal_rate_pct: 14.9, installments: 24, signed_date: SIGN };
+const sumAmounts = (rows: { amount_lei: number }[]) => sum(rows.map((r) => r.amount_lei));
+
+test('Art. 35: graficul contractului = graficul ofertei de la data semnarii', () => {
+  assert.deepEqual(contractSchedule(ANA_C), buildQuote(PH2, RATE, 24, SIGN).schedule);
+});
+
+test('Art. 35: rata e ratata doar DUPA scadenta (Ana, scadenta 21 dec.)', () => {
+  assert.equal(missedInstallment(ANA_C, '2026-12-20'), null);
+  assert.equal(missedInstallment(ANA_C, '2026-12-21'), null); // in ziua scadentei nu e intarziata
+  assert.deepEqual(missedInstallment(ANA_C, '2026-12-22'), { n: 1, due_date: '2026-12-21', amount_lei: 106.52, days_late: 1 });
+  assert.equal(missedInstallment(ANA_C, '2026-12-26')!.days_late, 5); // „ziua 35”
+});
+
+test('Art. 35: amanare o luna (Ana) -> aceeasi rata, +27,30 lei dobanda la ultima rata, total 2.583,72', () => {
+  const d = deferOneMonth(ANA_C, 1);
+  assert.equal(d.extra_cost_lei, 27.30);
+  assert.equal(d.installment_lei, 106.52);
+  assert.equal(d.installments, 24);
+  assert.equal(d.first_due_date, '2027-01-21');
+  assert.equal(d.last_due_date, '2028-12-21');
+  assert.equal(d.last_installment_lei, 133.76); // 106,46 + 27,30
+  assert.equal(d.total_payable_lei, 2583.72);
+  assert.equal(sumAmounts(d.schedule), d.total_payable_lei);
+  assert.equal(d.schedule.at(-1)!.balance_lei, 0);
+});
+
+test('Art. 35: reesalonare (Ana) -> 2.226,30 lei pe 29 de rate de 91,89, total 2.664,80, termen +6 luni', () => {
+  const r = reschedule(ANA_C, 1);
+  assert.equal(r.installments, 29);
+  assert.equal(r.installment_lei, 91.89);
+  assert.equal(r.last_installment_lei, 91.88);
+  assert.equal(r.total_payable_lei, 2664.80);
+  assert.equal(r.extra_cost_lei, 108.38);
+  assert.equal(r.first_due_date, '2027-01-21');
+  assert.equal(r.last_due_date, '2029-05-21'); // termenul initial 21 nov. 2028 + 6 luni
+  assert.equal(sum(r.schedule.map((s) => s.principal_lei)), 2226.30); // 2.199 + dobanda lunii ratate
+  assert.equal(r.schedule.at(-1)!.balance_lei, 0);
+  assert.deepEqual(r.schedule.map((s) => s.n), Array.from({ length: 29 }, (_, i) => i + 1));
+});
+
+test('Art. 35: fara comisioane – costul in plus e doar dobanda (credit 0% -> 0 lei in plus)', () => {
+  const z: ContractTerms = { principal_lei: 399, nominal_rate_pct: 0, installments: 4, signed_date: SIGN };
+  const o = forbearanceOptions(z, 1);
+  assert.equal(o.defer.extra_cost_lei, 0);
+  assert.equal(o.defer.total_payable_lei, 399);
+  assert.equal(o.reschedule.extra_cost_lei, 0);
+  assert.equal(o.reschedule.installments, 9); // 3 ramase + 6
+  assert.equal(o.reschedule.total_payable_lei, 399);
+});
+
+test('Art. 35: rata ratata la mijloc (n = 3) -> ratele platite intra in total, nu se reesaloneaza', () => {
+  const sched = contractSchedule(ANA_C);
+  const d = deferOneMonth(ANA_C, 3);
+  const r = reschedule(ANA_C, 3);
+  assert.equal(d.installments, 22);
+  assert.equal(d.schedule[0].n, 3);
+  assert.equal(d.schedule[0].due_date, addMonths(SIGN, 4));
+  assert.equal(d.extra_cost_lei, Math.round(sched[1].balance_lei * 100 * 0.149 / 12) / 100);
+  assert.equal(r.installments, 21 + 6);
+  assert.equal(r.schedule[0].n, 3);
+  assert.equal(r.total_payable_lei, sum([...sched.slice(0, 2).map((s) => s.amount_lei), ...r.schedule.map((s) => s.amount_lei)]));
+  assert.throws(() => deferOneMonth(ANA_C, 25));
+});
+
+test('Art. 35: Mihai (PH-3, 3.499 lei) -> amanarea costa o luna de dobanda pe 3.499', () => {
+  const m: ContractTerms = { principal_lei: 3499, nominal_rate_pct: 14.9, installments: 24, signed_date: SIGN };
+  assert.equal(deferOneMonth(m, 1).extra_cost_lei, Math.round(349900 * 0.149 / 12) / 100);
+  assert.equal(deferOneMonth(m, 1).installment_lei, 169.49);
+});

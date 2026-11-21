@@ -7,3 +7,4 @@ export * from './validation.ts';
 export * from './affordability.ts';
 export * from './agreement.ts';
 export * from './secci.ts';
+export * from './forbearance.ts';

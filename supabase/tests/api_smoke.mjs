@@ -227,5 +227,82 @@ ok('Ana -> ultima cerere in curs (cea fara acord bancar, in analiza)', curA.json
   curA.json?.application?.next_step === 'wait_review' && curA.json?.application?.device_name === 'Nova 3', JSON.stringify(curA.json));
 if (OP_PASS) ok('Ioana -> respinsa dupa revizuire nu e „in curs”', (await call(ioana, 'GET', '/applications/current')).json?.application?.application_id !== idI);
 
+console.log('Rata ratata (art. 35):');
+const plusMonths = (d, n) => {
+  const [y, m, day] = d.split('-').map(Number); const idx = m - 1 + n; const ny = y + Math.floor(idx / 12); const nm = idx % 12;
+  const last = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate();
+  return `${ny}-${String(nm + 1).padStart(2, '0')}-${String(Math.min(day, last)).padStart(2, '0')}`;
+};
+const daysDiff = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+async function signNew(token, sku, product_id, term_months) {
+  const a = await call(token, 'POST', '/applications', { sku, product_id, term_months, shown: { ad_warning: true, personalised_label: true } });
+  const aid = a.json?.application_id;
+  await call(token, 'POST', `/applications/${aid}/consents`, { billing_history: true, bank_data: true, privacy_notice_read: true });
+  await call(token, 'POST', `/applications/${aid}/assessment`, { net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_lei: 300 });
+  await call(token, 'GET', `/applications/${aid}/secci`);
+  const o = await call(token, 'POST', `/applications/${aid}/otp`);
+  const s = await call(token, 'POST', `/applications/${aid}/sign`, { otp: o.json?.otp_demo_code });
+  return { aid, agr: s.json?.agreement_id };
+}
+const F = await signNew(ana, 'PH-2', 'RATE', 24);
+ok('contract nou PH-2 pentru scena art. 35', !!F.agr, JSON.stringify(F));
+const f0 = await call(ana, 'GET', `/agreements/${F.agr}`);
+ok('ziua 0 -> nicio rata ratata, fara variante', f0.json?.missed_installment === null && f0.json?.forbearance_options === null &&
+  f0.json?.forbearance === null && f0.json?.missed_notice === null, JSON.stringify(f0.json));
+ok('alegere inainte de scadenta -> 409 NO_MISSED_INSTALLMENT',
+  (await call(ana, 'POST', `/agreements/${F.agr}/forbearance`, { option: 'defer' })).json?.error?.code === 'NO_MISSED_INSTALLMENT');
+await call(ana, 'POST', '/demo/time-travel', { agreement_id: F.agr, days: 35 });
+const f35 = await call(ana, 'GET', `/agreements/${F.agr}`);
+const due1 = plusMonths(today, 1);
+const mi = f35.json?.missed_installment;
+ok('ziua 35 -> rata 1 ratata (106,52, scadenta azi+1 luna)', mi?.n === 1 && mi?.amount_lei === 106.52 && mi?.due_date === due1 &&
+  mi?.days_late === daysDiff(due1, plusDays(today, 35)), JSON.stringify(mi));
+ok('ziua 35 -> mesaj simulat pe email', f35.json?.missed_notice?.channel === 'email (simulat)' && /nu a fost platita/.test(f35.json?.missed_notice?.text ?? ''), JSON.stringify(f35.json?.missed_notice));
+const fo = f35.json?.forbearance_options;
+ok('amanare -> aceeasi rata, +27,30 lei, total 2.583,72, 24 de rate', fo?.defer?.installment_lei === 106.52 && fo?.defer?.extra_cost_lei === 27.3 &&
+  fo?.defer?.total_payable_lei === 2583.72 && fo?.defer?.installments === 24 && fo?.defer?.first_due_date === plusMonths(today, 2), JSON.stringify(fo?.defer && { ...fo.defer, schedule: undefined }));
+ok('reesalonare -> 29 de rate de 91,89, total 2.664,80, +108,38 lei', fo?.reschedule?.installment_lei === 91.89 && fo?.reschedule?.installments === 29 &&
+  fo?.reschedule?.total_payable_lei === 2664.8 && fo?.reschedule?.extra_cost_lei === 108.38 && fo?.reschedule?.schedule?.length === 29 &&
+  fo?.reschedule?.last_due_date === plusMonths(today, 30), JSON.stringify(fo?.reschedule && { ...fo.reschedule, schedule: undefined }));
+ok('„vorbeste cu un om” -> eta 24 de ore', fo?.talk?.eta_text === 'Un coleg revine in 24 de ore.', JSON.stringify(fo?.talk));
+ok('ziua 35 din nou -> acelasi mesaj (o singura notificare)', (await call(ana, 'GET', `/agreements/${F.agr}`)).json?.missed_notice?.sent_at === f35.json?.missed_notice?.sent_at);
+ok('Mihai NU poate alege pentru contractul Anei -> 404', (await call(mihai, 'POST', `/agreements/${F.agr}/forbearance`, { option: 'defer' })).status === 404);
+ok('optiune necunoscuta -> 400', (await call(ana, 'POST', `/agreements/${F.agr}/forbearance`, { option: 'forgive' })).status === 400);
+ok('camp in plus -> 400', (await call(ana, 'POST', `/agreements/${F.agr}/forbearance`, { option: 'defer', x: 1 })).status === 400);
+const fd = await call(ana, 'POST', `/agreements/${F.agr}/forbearance`, { option: 'defer' });
+ok('Ana alege amanarea -> salvata, +27,30 lei, text cu „Fara comisioane”', fd.json?.forbearance?.option === 'defer' && fd.json?.forbearance?.extra_cost_lei === 27.3 &&
+  fd.json?.forbearance?.schedule?.length === 24 && /Fara comisioane\.$/.test(fd.json?.text ?? ''), JSON.stringify(fd.json && { ...fd.json, forbearance: { ...fd.json.forbearance, schedule: undefined } }));
+ok('a doua alegere -> 409 FORBEARANCE_ALREADY_CHOSEN',
+  (await call(ana, 'POST', `/agreements/${F.agr}/forbearance`, { option: 'reschedule' })).json?.error?.code === 'FORBEARANCE_ALREADY_CHOSEN');
+const fAfter = await call(ana, 'GET', `/agreements/${F.agr}`);
+ok('dupa alegere -> fara variante, masura vizibila', fAfter.json?.forbearance_options === null && fAfter.json?.forbearance?.option === 'defer', JSON.stringify(fAfter.json?.forbearance?.option));
+
+const T = await signNew(ana, 'AC-1', 'ZERO4', 4);
+await call(ana, 'POST', '/demo/time-travel', { agreement_id: T.agr, days: 35 });
+const t35 = await call(ana, 'GET', `/agreements/${T.agr}`);
+ok('ZERO4 ziua 35 -> amanarea costa 0 lei', t35.json?.forbearance_options?.defer?.extra_cost_lei === 0 && t35.json?.forbearance_options?.reschedule?.installments === 9, JSON.stringify(t35.json?.forbearance_options?.defer?.extra_cost_lei));
+const tt35 = await call(ana, 'POST', `/agreements/${T.agr}/forbearance`, { option: 'talk' });
+ok('„vorbeste cu un om” -> revizuire in coada (pending)', tt35.json?.forbearance?.option === 'talk' && tt35.json?.forbearance?.review?.status === 'pending' &&
+  tt35.json?.text === 'Un coleg revine in 24 de ore.', JSON.stringify(tt35.json));
+if (OP_PASS) {
+  const op2 = await login('operator@demo.comb.ro', OP_PASS);
+  const rvF = await call(op2, 'GET', '/backoffice/reviews');
+  const revT = rvF.json?.reviews?.find((x) => x.application?.application_id === T.aid);
+  ok('coada -> cererea art. 35 cu eticheta forbearance', revT?.topic === 'forbearance' && revT?.forbearance?.option === 'talk' && revT?.application?.status === 'signed', JSON.stringify(revT && { topic: revT.topic, f: revT.forbearance }));
+  const rsT = await call(op2, 'POST', '/backoffice/reviews', { review_id: revT?.review_id, status: 'approved', note: 'Am vorbit cu clienta; plateste pe 30.' });
+  ok('„Am contactat clientul” -> contractul ramane semnat', rsT.json?.application_status === 'signed', JSON.stringify(rsT.json));
+  ok('clientul vede revizuirea rezolvata', (await call(ana, 'GET', `/agreements/${T.agr}`)).json?.forbearance?.review?.status === 'approved');
+  const lgF = await call(op2, 'GET', `/backoffice/ledger?application_id=${F.aid}`);
+  const evF = (lgF.json?.entries ?? []).map((e) => e.event);
+  ok('jurnal amanare -> valid, installment_missed + forbearance_offered + forbearance_chosen (art. 35)', lgF.json?.valid === true &&
+    JSON.stringify(evF.slice(-3)) === JSON.stringify(['installment_missed', 'forbearance_offered', 'forbearance_chosen']) &&
+    (lgF.json?.entries ?? []).slice(-3).every((e) => e.ccd2_ref === 'art. 35'), JSON.stringify({ valid: lgF.json?.valid, last: evF.slice(-3) }));
+  const lgT = await call(op2, 'GET', `/backoffice/ledger?application_id=${T.aid}`);
+  const evT = (lgT.json?.entries ?? []).map((e) => e.event);
+  ok('jurnal „om” -> valid, ...forbearance_chosen, human_review_requested, human_review_resolved', lgT.json?.valid === true &&
+    JSON.stringify(evT.slice(-5)) === JSON.stringify(['installment_missed', 'forbearance_offered', 'forbearance_chosen', 'human_review_requested', 'human_review_resolved']),
+    JSON.stringify({ valid: lgT.json?.valid, last: evT.slice(-5) }));
+}
+
 console.log(`\nRezultat: ${pass} OK, ${fail} FAIL`);
 console.log(`Cererea Anei: ${id} | contract: ${agrId}`);

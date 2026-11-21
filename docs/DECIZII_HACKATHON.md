@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 16:30 (David face interfata, prezentarea si video-ul; noi dam continutul de business + Q&A – sectiunea 0; cardul „Cererea ta” publicat). Versiunea 16:15 (decizii noi: cardul „Cererea ta” – ruta 6c, contract v0.5; scena art. 35 SE FACE: amanare cu dobanda pe luna in plus, reesalonare +6 luni; QR pe ultimul slide – sectiunile 1, 6, 16). Versiunea 15:40 (**alte rate vazute in contul bancar – engine-v3, contract v0.4** in sectiunea 6; regula in sectiunea 5; Mihai: banca 750 lei; scena art. 35 si recomandarea prudenta raman in afara codului – sectiunea 16). Versiunea 15:00 (**formatul prezentarii anuntat de organizatori la 13:34**: 3 min business + 1 min demo inregistrat + 2 min Q&A, fara laptop propriu – sectiunile 1, 10, 11). Versiunea 14:50 (aplicatia live pe Vercel, testata cap-coada; statusul din sectiunea 15). Versiunea 14:25 (numele operatorului in SECCI: „Telvia (demo)”, sectiunea 1). Versiunea 13:05: adaugata sectiunea 16, idei de roadmap de la mentori. Versiunea 12:15: verificarea venitului prin Open Banking simulat – contract v0.3 in sectiunea 6, regula in sectiunea 5, checklist 4–5). Versiunea 11:30: pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 16:40 (**scena „rata ratata” (art. 35)**: migratia `20261121143024 forbearance` aplicata; motor, API si back-office scrise, de comis + deploy; **contract v0.6** – sectiunile 1, 3, 5, 6, 13, 16). Versiunea 16:30 (David face interfata, prezentarea si video-ul; noi dam continutul de business + Q&A – sectiunea 0; cardul „Cererea ta” publicat). Versiunea 16:15 (decizii noi: cardul „Cererea ta” – ruta 6c, contract v0.5; scena art. 35 SE FACE: amanare cu dobanda pe luna in plus, reesalonare +6 luni; QR pe ultimul slide – sectiunile 1, 6, 16). Versiunea 15:40 (**alte rate vazute in contul bancar – engine-v3, contract v0.4** in sectiunea 6; regula in sectiunea 5; Mihai: banca 750 lei; scena art. 35 si recomandarea prudenta raman in afara codului – sectiunea 16). Versiunea 15:00 (**formatul prezentarii anuntat de organizatori la 13:34**: 3 min business + 1 min demo inregistrat + 2 min Q&A, fara laptop propriu – sectiunile 1, 10, 11). Versiunea 14:50 (aplicatia live pe Vercel, testata cap-coada; statusul din sectiunea 15). Versiunea 14:25 (numele operatorului in SECCI: „Telvia (demo)”, sectiunea 1). Versiunea 13:05: adaugata sectiunea 16, idei de roadmap de la mentori. Versiunea 12:15: verificarea venitului prin Open Banking simulat – contract v0.3 in sectiunea 6, regula in sectiunea 5, checklist 4–5). Versiunea 11:30: pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -47,6 +47,7 @@ Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 | Numele operatorului | **Telvia** (ales de David). In SECCI, ca intermediar: „Telvia (demo)” – marcat fictiv, ca si creditorul „Credis IFN (demo)”. Se aplica SECCI-urilor noi; cele salvate deja raman neschimbate (21.11, 14:20) |
 | Cardul „Cererea ta” (magazin) | Un singur card cu **ultima cerere neincheiata** (in analiza / aprobata / draft / contract activ) + buton spre pasul corect. Ruta noua `GET /applications/current` (6c). Rezolva „Mihai nu are drum inapoi dupa aprobare” (21.11, 15:55) |
 | Scena „rata ratata” (art. 35) | **Se face** (21.11, 15:55). „Amana rata o luna” costa doar dobanda pe luna in plus (afisata exact, fara comisioane); „Reesaloneaza” = restul de plata pe ratele ramase + 6 luni, aceeasi dobanda, fara comision; „Vorbeste cu un om” intra in coada din back-office. In demo prima rata e considerata neplatita (aplicatia nu tine evidenta platilor) |
+| Rata ratata – detalii (art. 35) | Decis cu Bogdan (21.11, 16:20): **o singura masura pe contract**, aleasa de client; la „vorbeste cu un om” operatorul doar noteaza („Am contactat clientul”), contractul semnat nu se schimba. **Amanare** = ratele ramase se muta cu o luna, in plus doar dobanda pe o luna pe soldul ramas, adaugata la ultima rata (Ana: +27,30 lei, total 2.583,72). **Reesalonare** = datoria la scadenta ratata (sold + dobanda lunii ratate; Ana 2.199 + 27,30 = 2.226,30) pe ratele ramase + 6, aceeasi dobanda (Ana: 29 × 91,89 lei, total 2.664,80; se termina la 6 luni dupa termenul initial). Cardul arata rata, totalul si numarul de rate; graficul complet la „Vezi detalii”. La rata ratata se trimite un mesaj „email (simulat)”. Contract v0.6 in sectiunea 6 |
 | QR spre aplicatia live | Pe ultimul slide, pentru juriu (David) (21.11, 15:55) |
 | Date curate pentru demo | Nu stergem nimic. Coloana `applications.archived_at`: cererile arhivate dispar din back-office (lista + coada), jurnalul ramane valid. `data/archive_demo.sql` arhiveaza toate cererile celor 3 conturi demo; il ruleaza Bogdan in SQL Editor inainte de repetitii si inainte de pitch (21.11, 11:20) |
 
@@ -133,8 +134,12 @@ Fiecare ecran are: scop, continut obligatoriu, regula CCD2, stari si „gata can
 - Tabelul jurnalului: ora, eveniment, articol CCD2, hash. Insigna „Jurnal verificat ✓”.
 - Coada de revizuire umana: Aproba / Respinge + nota.
 
-### Optional (doar daca sambata la 19:00 suntem in grafic): rata ratata
-- Notificare blanda, cu optiunile: amanare o luna / reesalonare / vorbeste cu un om (art. 35).
+### Dupa semnare: rata ratata (art. 35) – SE FACE (decis 21.11, 15:55; detalii 16:20)
+- Pe ecranul contractului: buton discret **„Sari la ziua 35 (demo)”** (`POST /demo/time-travel` cu `days: 35`, apoi `GET /agreements/{id}`).
+- Cand `missed_installment` nu e `null` si `forbearance` e `null`: **card bland**, fara ton de amenintare: „Rata din 21 dec. 2026 nu a fost platita. Te putem ajuta.” + mesajul simulat (`missed_notice`).
+- 3 optiuni, la fel de vizibile, fiecare cu cifrele ei din `forbearance_options` **inainte** de alegere: **Amana rata o luna** (rata ramane aceeasi, „platesti in plus doar X lei dobanda”), **Reesaloneaza** (rata noua, numarul de rate, totalul nou; graficul la „Vezi detalii”), **Vorbeste cu un om** („Un coleg revine in 24 de ore.”). Scris clar: **fara comisioane**.
+- Dupa alegere: ecran de rezultat cu `forbearance.text` (si graficul la „Vezi detalii”). La „om”: `forbearance.review.status` (`pending` → „Un coleg revine in 24 de ore.”; `approved` → „Un coleg te-a contactat.”).
+- CCD2: art. 35 (masuri de toleranta rezonabile inainte de executare, fara costuri in plus peste costul real). Gata cand: Ana → ziua 35 → amanare, iar jurnalul din back-office arata cele 3 evenimente art. 35.
 
 ---
 
@@ -199,6 +204,7 @@ ZERO4 e intentionat in demo: il da un creditor partener (tert), pe mai mult de 5
 - **Prima rata** la o luna de la semnare (21 nov. → 21 dec.); daca ziua nu exista in luna, ultima zi a lunii.
 - **Retragere:** 14 zile calendaristice de la semnare. **Suma de returnat** = creditul + dobanda pe zilele folosite (rata anuala / 365 × zile), in maximum 30 de zile de la retragere. Ex.: retragere dupa 3 zile = 2.199 + 2,69 = 2.201,69 lei.
 - **Reminder:** daca a semnat la mai putin de 24 de ore dupa ce a vazut SECCI, reminder intre zilele 1 si 7 de la semnare.
+- **Rata ratata (art. 35, decis 21.11, 16:20):** in demo prima rata e neplatita cand „azi” (data reala + zilele sarite) e **dupa** scadenta (in ziua scadentei nu e intarziata). **Amanare** = ratele ramase se muta cu o luna; cost in plus = dobanda pe o luna pe soldul ramas (rata anuala / 12 × sold, rotunjit la ban), adaugata la ultima rata. **Reesalonare** = (soldul inainte de rata ratata + dobanda lunii ei) pe (rate ramase dupa cea ratata + 6) rate egale, aceeasi dobanda, ultima rata ajustata; prima rata noua la o luna dupa scadenta ratata. Fara comisioane; la creditul 0% ambele costa 0 lei in plus. Ana (2.199 lei, 24 luni): amanare +27,30 lei (total 2.583,72); reesalonare 29 × 91,89 lei (ultima 91,88), total 2.664,80 (+108,38).
 
 ---
 
@@ -229,6 +235,7 @@ ZERO4 e intentionat in demo: il da un creditor partener (tert), pe mai mult de 5
 | 10 | POST | `/applications/{id}/otp` | 6 | P0 |
 | 11 | POST | `/applications/{id}/sign` | 6 | P0 |
 | 12 | GET | `/agreements/{id}` | 6 | P0 |
+| 12b | POST | `/agreements/{id}/forbearance` (nou in v0.6) | 6 | P1 |
 | 13 | POST | `/agreements/{id}/withdraw` | 6 | P0 |
 | 14 | POST | `/demo/time-travel` | 6 | P1 |
 | 15 | GET | `/backoffice/ledger` | back-office | P0 |
@@ -267,6 +274,21 @@ Trimis lui David la 11:50. Ecranele 3 si 4.
 - **6b `GET /applications/{id}`** – `decision.verification`, aceeasi forma (pe evaluarile vechi: `used_lei` = declarat).
 - **16 `GET /backoffice/reviews`** – `assessment` are in plus `bank_data_used`, `income_verified_lei`, `income_used_lei`, `expenses_verified_lei`, `expenses_used_lei`; back-office-ul arata „Venit neverificat: cere un document” cand lipseste verificarea.
 - Jurnal: `assessment_done` are in payload `income_verification` (`open_banking_simulated` / `no_consent` / `unavailable`) si `engine_version: "engine-v2"`.
+
+### Schimbari v0.6 (21.11, 16:40) – rata ratata (art. 35)
+Decis cu Bogdan la 16:20. Ecranul 6 (contractul); butonul „Sari la ziua 35 (demo)” foloseste ruta 14 existenta (`days: 35`).
+- **12 `GET /agreements/{id}`** – campuri noi:
+  - `missed_installment`: `{ "n": 1, "due_date": "2026-12-21", "amount_lei": 106.52, "days_late": 5 }` sau `null` (scadenta nu a trecut sau contractul e retras). La prima detectare se trimite mesajul simulat si se scrie in jurnal, o singura data.
+  - `missed_notice`: `{ "sent_at", "channel": "email (simulat)", "text": "Rata 1 (106,52 lei), cu scadenta pe 21 dec. 2026, nu a fost platita. Te putem ajuta: ... Fara comisioane." }` sau `null`.
+  - `forbearance_options` (doar inainte de alegere, altfel `null`):
+    `{ "defer": { "installment_lei": 106.52, "last_installment_lei": 133.76, "installments": 24, "first_due_date": "2027-01-21", "last_due_date": "2028-12-21", "total_payable_lei": 2583.72, "extra_cost_lei": 27.30, "schedule": [...] }, "reschedule": { "installment_lei": 91.89, "last_installment_lei": 91.88, "installments": 29, "first_due_date": "2027-01-21", "last_due_date": "2029-05-21", "total_payable_lei": 2664.80, "extra_cost_lei": 108.38, "schedule": [...] }, "talk": { "eta_text": "Un coleg revine in 24 de ore." } }`.
+    `schedule[]` = `{ n, due_date, amount_lei, principal_lei, interest_lei, balance_lei }`, ratele ramase (pentru „Vezi detalii”).
+  - `forbearance`: masura aleasa sau `null`: `{ "option", "chosen_at", "installment_n", "missed_due_date", "installment_lei", "last_installment_lei", "installments", "first_due_date", "last_due_date", "total_payable_lei", "extra_cost_lei", "schedule", "text", "review": { "status", "resolved_at" } | null }`. La `talk` cifrele si `schedule` sunt `null`, iar `review` arata starea cererii din coada.
+  - Regula pentru card: se arata cand `missed_installment != null` si `forbearance == null`.
+- **12b `POST /agreements/{id}/forbearance`** (nou) – body `{ "option": "defer" | "reschedule" | "talk" }` → `{ "forbearance": { ...ca mai sus }, "text": "..." }`. Erori: 400 `VALIDATION` (optiune necunoscuta, camp in plus); 409 `NO_MISSED_INSTALLMENT` (inainte de scadenta), `FORBEARANCE_ALREADY_CHOSEN`, `ALREADY_WITHDRAWN`, `REVIEW_PENDING`. Doar clientul care detine contractul (operator 403, altcineva 404).
+  Texte (Ana): defer – „Ratele se muta cu o luna. Urmatoarea rata (106,52 lei) e pe 21 ian. 2027. Platesti in plus doar 27,30 lei dobanda pentru luna in plus, adaugata la ultima rata. Fara comisioane.”; reschedule – „Ai 29 de rate a cate 91,89 lei, prima pe 21 ian. 2027. Total de plata: 2.664,80 lei (cu 108,38 lei dobanda in plus). Fara comisioane.”; talk – „Un coleg revine in 24 de ore.”
+- **16 `GET /backoffice/reviews`**: in plus `topic` (`decision` / `forbearance`) si `forbearance` (`{ option, installment_n, missed_due_date }` | `null`). Back-office-ul arata eticheta „Rata ratata · CCD2 art. 35” si un singur buton „Am contactat clientul” (trimite `approved`; contractul semnat nu se schimba).
+- Jurnal: evenimente noi `installment_missed`, `forbearance_offered`, `forbearance_chosen` (toate art. 35); la `talk` urmeaza si `human_review_requested` (`topic: "forbearance"`). Payload fara date personale (numarul ratei, scadenta, sumele variantelor, `fees_lei: 0`).
 
 ### Schimbari v0.5 (21.11, 16:15) – cardul „Cererea ta”
 - **6c `GET /applications/current`** (nou, doar client; operator → 403). Raspuns `{ "application": null }` sau
@@ -385,7 +407,7 @@ Pentru Mihai: `"decision": "manual_review"`, un motiv cu codul `BILLS_LATE`.
 ] }
 ```
 
-Evenimentele din jurnal: `offer_requested` (art. 17) · `ad_warning_shown` (art. 8) · `personalised_offer_disclosed` (art. 13) · `consent_given` (GDPR) · `assessment_done` (art. 18) · `human_review_requested` (art. 18(8)) · `secci_shown` (art. 10) · `otp_sent` · `agreement_signed` · `withdrawal_reminder_sent` (art. 10) · `withdrawn` (art. 26).
+Evenimentele din jurnal: `offer_requested` (art. 17) · `ad_warning_shown` (art. 8) · `personalised_offer_disclosed` (art. 13) · `consent_given` (GDPR) · `assessment_done` (art. 18) · `human_review_requested` (art. 18(8)) · `secci_shown` (art. 10) · `otp_sent` · `agreement_signed` · `withdrawal_reminder_sent` (art. 10) · `withdrawn` (art. 26) · `installment_missed`, `forbearance_offered`, `forbearance_chosen` (art. 35, nou in v0.6).
 
 ---
 
@@ -519,7 +541,7 @@ Planul vechi de slide-uri (sursa de continut, de comprimat in 3 minute):
 | 10 | Informatiile pe suport durabil | 10 | „Trimite-mi pe email” (simulat) | `secci_emailed` | Ambii | P1 |
 | 11 | Reminder de retragere in zilele 1–7 daca s-a semnat la < 1 zi de la informare | 10 | Card „Reminder” + „Sari la ziua 3” | `withdrawal_reminder_sent` | Bogdan | P1 |
 | 12 | Retragere in 14 zile, fara motiv; returnare in 30 de zile | 26 | Ecran 6: termenul exact + „Ma retrag din contract” | `withdrawn` | Ambii | P0 |
-| 13 | Masuri de toleranta inainte de executare | 35 | Scena optionala „rata ratata” | – | Ambii | P2 |
+| 13 | Masuri de toleranta inainte de executare, fara costuri peste costul real | 35 | Ecran 6: „Sari la ziua 35” → card cu amanare o luna (doar dobanda pe luna in plus) / reesalonare (+6 luni, aceeasi dobanda) / vorbeste cu un om (coada din back-office); fara comisioane | `installment_missed`, `forbearance_offered`, `forbearance_chosen` | Ambii | P1 |
 
 ## 14. Securitate (slide-ul tehnic)
 
@@ -568,7 +590,7 @@ Planul vechi de slide-uri (sursa de continut, de comprimat in 3 minute):
 | A 3-a cifra din banca: „rate platite lunar, vazute in cont” (prinde BNPL / rate la magazin / IFN care nu raporteaza la Birou). Alte rate = max(declarat, Birou, banca) | **FACUT (21.11, 15:40, engine-v3)** – vezi sectiunile 5 si 6 (v0.4) | Verificare in plus, nu colectare in plus |
 | „Toate datele bancare posibile” | **Nu** | CCD2 art. 18(3) + GDPR: doar date necesare si proportionale; tranzactiile complete dezvaluie date interzise (sanatate, religie, politic). Argument de pitch: „luam doar ce trebuie” |
 | Recomandari de tip „ai venit mare, ia o rata mai mare / un telefon mai scump” sau „respins pe 12 luni, ia pe 24” | **Nu** | Upselling de credit (art. 17), risc de supra-indatorare; recomandarea personalizata = servicii de consiliere (art. 16) + informare (art. 13) |
-| Scena „rata ratata” (art. 35): la ziua 35 prima rata e neplatita → card bland cu amanare o luna / reesalonare / vorbeste cu un om, totul in jurnal | **Se face** (Bogdan, 21.11, 15:55) – regulile in sectiunea 1 | Art. 35 cere masuri de toleranta inainte de executare |
+| Scena „rata ratata” (art. 35): la ziua 35 prima rata e neplatita → card bland cu amanare o luna / reesalonare / vorbeste cu un om, totul in jurnal | **Se face** (Bogdan, 21.11, 15:55); **scris in cod 16:40** (migratie aplicata, motor + API + back-office; de comis + deploy; cardul il face David) – regulile in sectiunile 1 si 5 | Art. 35 cere masuri de toleranta inainte de executare |
 | Recomandare prudenta: „daca iti permiti rata pe 12 luni, platesti cu X lei mai putin in total decat pe 24” | Roadmap (pitch); **nu o implementam** (Bogdan, 21.11, 15:10) | Reduce costul, in interesul clientului; cere ecran nou la David |
 
 Detaliile tehnice, regulile de lucru si pasii urmatori exacti sunt in `PREDARE_CLAUDE.md` (in proiect si in `docs/`).
