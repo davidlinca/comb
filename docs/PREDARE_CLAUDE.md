@@ -1,6 +1,6 @@
 # Predare pentru Claude – conversatia urmatoare
 
-Versiune: sambata 21.11.2026, 03:35 (API partea 2 publicat si testat pe server, plus `GET /applications/{id}`; deciziile din 5.3 rezolvate). Scris pentru conversatia noua (Opus 5.5, effort extra).
+Versiune: sambata 21.11.2026, 04:00 (API partea 2 in `main`; back-office scris si testat; deciziile din 5.3 rezolvate). Scris pentru conversatia noua (Opus 5.5, effort extra).
 Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spune CUM lucram, UNDE e totul, CE e gata si CE urmeaza exact.
 
 ---
@@ -37,7 +37,7 @@ Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spun
 
 | Ce | Valoare |
 |---|---|
-| Repo | https://github.com/davidlinca/comb (public). `main` la `56cebc0`. PR-uri merge-uite: #1 schema, #2 motor + date, #3 API partea 1, #4 docs contract v0.1, #5 docs predare. In lucru: `feat/backend-api-p2` |
+| Repo | https://github.com/davidlinca/comb (public). `main` la `e7aa2f9`. PR-uri merge-uite: #1 schema, #2 motor + date, #3 API partea 1, #4 docs contract v0.1, #5 docs predare, #6 API partea 2. In lucru: `feat/backend-backoffice`. Proiectul `web/` al lui David NU e inca pe GitHub (in `main`, `web/` are doar `src/backoffice/`) |
 | Folder local Bogdan | `D:\HACKATHON\comb` (Windows, PowerShell). Montat in device_bash la `$HOME/mnt/comb` |
 | Supabase | proiect `comb`, ref `ezynswlvqqrzahpblkxu`, org „MareBogdan's Org” (Free), regiunea eu-central-1 |
 | URL | `https://ezynswlvqqrzahpblkxu.supabase.co` |
@@ -64,6 +64,7 @@ Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spun
 | Date demo | aplicat pe server (rulat de Bogdan in SQL Editor) + conturi legate | `data/generate_seed.ts` → `data/seed_demo.sql`, `data/link_accounts.sql` | `supabase/tests/seed.test.mjs` |
 | API partea 1 (rutele 1–6) | publicat (CLI), testat pe server | `supabase/functions/api/` | `supabase/tests/api_smoke.mjs` – 15/15 |
 | API partea 2 (rutele 6b, 7–16) | publicat (CLI, v3), testat pe server 62/63 (FAIL-ul era in test: ordinea cheilor din jsonb; reparat) | `routes/signing.ts`, `routes/agreements.ts`, `routes/backoffice.ts`, `lib/flow.ts`, `GET /applications/:id` in `routes/customer.ts` | `lib/flow.test.ts` 12/12 (Node + Deno), `deno check` ok; `api_smoke.mjs` extins la 63 verificari |
+| Back-office | scris, testat pe server cu operatorul (pagina de proba) | `web/src/backoffice/` (Backoffice, LedgerView, ReviewsView, api, format, ui, README) + `tools/backoffice-dev/` | `npm run build` (tsc strict + vite) ok; verificat in Chrome: 25/25 jurnale intacte, coada cu 7 cereri, „Vezi jurnalul” merge |
 | Checklist CCD2 + securitate | in DECIZII, sectiunile 13–14 | `docs/` | – |
 
 ### 3.1 Schema (rezumat)
@@ -100,6 +101,13 @@ Valori Ana (PH-2, 24 luni): 106,52 lei/luna, ultima 106,46, total 2.556,42, cost
 - `routes/backoffice.ts` (15–16): montat la `/backoffice` (ATENTIE: un `use('*')` intr-un router montat la `/` s-ar aplica pe toate rutele); lista = ultimele 25 de cereri, `ledger_verify` in paralel prin `admin.rpc`; rezolvarea revizuirii schimba statusul cererii doar din `manual_review`/`approved`/`rejected`.
 - Jurnal: payload-urile noi nu au date personale (`has_message`, `has_note`, nu textul).
 
+### 3.5 Back-office (`web/src/backoffice/`, 21.11, 04:00)
+- Decuplat: doar `react` + clase Tailwind (fara shadcn, fara cod de-al lui David). Props: `apiUrl`, `publishableKey`, `getAccessToken()`, optional `operatorName`, `onLogout`. Integrarea = o ruta `/backoffice` in router-ul lui David (exemplu in `README.md`), cu acordul lui.
+- `LedgerView`: lista ultimelor 25 de cereri cu verificarea lantului + detaliul cu sigiliul „Jurnal verificat” / „Jurnal compromis” si lantul (fiecare intrare „legata de” hash-ul anterior, payload la cerere). `ReviewsView`: coada `pending` (sau toate), motive + cifre + mesajul clientului, nota + Aproba/Respinge, se actualizeaza singura la 10 s, „Vezi jurnalul cererii”.
+- Formatari: lei `1.234,56 lei`, ora Romaniei; „CCD2” doar pentru referintele `art. ...` (`GDPR art. 7` ramane asa).
+- `tools/backoffice-dev/`: Vite 8 + React 19 + Tailwind 4, login de operator, randeaza aceeasi componenta; `npm install`, `npm run dev` (port 5173 fix, permis de CORS). `resolve.dedupe` + `server.fs.allow` + `@source` pentru fisierele din `web/`; `tsconfig.paths` pentru tipurile React.
+- Capcana: Aproba/Respinge scrie in baza si in jurnal (ireversibil) – nu testa pe cererile demo ale lui Mihai/Ioana.
+
 ---
 
 ## 4. Cum lucram tehnic (capcane deja descoperite – nu le repeta)
@@ -117,6 +125,8 @@ Valori Ana (PH-2, 24 luni): 106,52 lei/luna, ultima 106,46, total 2.556,42, cost
 
 ### 4.3 Folderul lui Bogdan si git
 - Scrii fisierele asa: le copiezi in `/mnt/user-data/outputs/comb/<cale>` si apoi `device_commit_files` cu `D:\HACKATHON\comb\<cale cu \>`. Inainte sa suprascrii un fisier existent, verifici ca Bogdan nu l-a modificat (compara cu versiunea din `main`).
+- **Capcane la copiere:** (1) nu trimite `cp` si `device_commit_files` in acelasi bloc paralel – commit-ul poate pleca inainte de copiere; (2) cand retrimiti acelasi fisier, fa `touch` pe copia din outputs inainte – altfel poate ajunge versiunea veche desi raspunsul zice „written”. Dupa scriere verifici mereu: `tr -d '\r' < fisier | md5sum` in `device_bash` vs `md5sum` la tine.
+- `npm install` pe Windows rescrie `package-lock.json` (scoate dependinte optionale de alta platforma). Normal; se comite versiunea lui Bogdan.
 - **NU rula comenzi git care scriu in `D:\HACKATHON\comb` prin `device_bash`** (fetch, pull, commit, checkout, status cu refresh): stergerea e blocata acolo, git lasa fisiere `.lock` si blocheaza git-ul lui Bogdan. Un `git fetch` a lasat deja `.git/objects/maintenance.lock` (mutat in `.git/stale-maintenance-lock-claude`). Citire cu `git log`/`git diff` e ok.
 - In VM, git arata aproape toate fisierele ca modificate din cauza CRLF (Windows, autocrlf). E normal. Foloseste `git diff --ignore-cr-at-eol`.
 - Clona ta din `/home/claude/comb` e doar pentru lucru si teste; adevarul e GitHub `main` + folderul lui Bogdan.
@@ -140,7 +150,7 @@ Valori Ana (PH-2, 24 luni): 106,52 lei/luna, ultima 106,46, total 2.556,42, cost
 ## 5. Ce urmeaza (exact)
 
 ### 5.1 API partea 2 – SCRIS (21.11, 03:25)
-Implementat dupa specificatia de mai jos, cu deciziile din 5.3. Contractul final e in DECIZII, sectiunea 6 („Schimbari v0.2”). **Publicat** (v3, `OTP_PEPPER` setat, smoke 62/63 – FAIL-ul era in test, reparat). Ramane: commit + PR pe `feat/backend-api-p2`. Atentie la teste: jsonb reordoneaza cheile, deci documentele salvate se compara cu cheile sortate. Specificatia initiala (pastrata ca referinta):
+Implementat dupa specificatia de mai jos, cu deciziile din 5.3. Contractul final e in DECIZII, sectiunea 6 („Schimbari v0.2”). **Publicat** (v3, `OTP_PEPPER` setat, smoke 62/63 – FAIL-ul era in test, reparat) si in `main` (PR #6). Atentie la teste: jsonb reordoneaza cheile, deci documentele salvate se compara cu cheile sortate. Specificatia initiala (pastrata ca referinta):
 - **7. `POST /applications/:id/human-review`** `{ message? }` (max 1000 caractere): permis pentru decizie `approved`/`rejected`/`manual_review` daca nu exista deja o revizuire `pending`; insert `human_reviews` (`requested_by: 'customer'`), jurnal `human_review_requested`. Raspuns `{ status: 'manual_review', eta_text: 'Un coleg revine in 24 de ore.' }`. **Decis:** devine `manual_review` (in seed, o cerere respinsa cu revizuire ceruta a ramas `rejected` – coada citeste din `human_reviews`, deci merge).
 - **8. `GET /applications/:id/secci`**: doar pentru `approved`. Recalculeaza oferta cu `buildQuote(..., localDate(now))` si verifica ca cifrele cheie = snapshot-ul din `applications`; `buildSecci(quote, product, numeOperator)`; insert `secci_documents` (unic pe cerere + versiune; daca exista, il returnezi pe cel salvat si NU dublezi evenimentul); jurnal `secci_shown { secci_version, content_sha256 }`. Numele operatorului e provizoriu („Operatorul demo”) pana alege David.
 - **9. `POST /applications/:id/secci/viewed`** (P1) `{ time_on_screen_ms, details_opened }` → update `secci_documents`, jurnal `secci_viewed`. „Trimite-mi pe email” = ruta separata `POST /applications/:id/secci/email` (decis) → `notifications` (`secci_email`) + `secci_emailed`.
@@ -155,7 +165,7 @@ Implementat dupa specificatia de mai jos, cu deciziile din 5.3. Contractul final
 
 ### 5.2 Dupa API (plan pe ore in DECIZII sectiunea 8)
 - Sincronizarea 1 cu David la 13:00 (contract confirmat). Poarta la 19:00 (flux real cap-coada; daca nu, taiem ZERO4 si scena optionala).
-- Back-office (desktop): tabelul jurnalului (ora, eveniment, articol CCD2, hash, insigna „Jurnal verificat ✓”) + coada de revizuire (Aproba/Respinge + nota). In `web/src/backoffice/` (decis); mesaj catre David cand e gata.
+- ~~Back-office~~ → scris (3.5). Ramane: cand urca David `web/`, legam ruta `/backoffice` (cu acordul lui) si verificam ca Tailwind-ul lui scaneaza `src/backoffice`; dupa login, `GET /me` cu `role = operator` duce la `/backoffice`.
 - Deploy web pe Vercel: il importa David (contul lui) cand merge login-ul pe API-ul real; apoi secretul `ALLOWED_ORIGINS` cu domeniul Vercel + QR pentru juriu.
 
 ### 5.3 Intrebari deschise (pune-le lui Bogdan, nu decide singur)

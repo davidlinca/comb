@@ -1,0 +1,25 @@
+{
+  "name": "comb-backoffice-dev",
+  "private": true,
+  "type": "module",
+  "description": "Pagina de proba pentru web/src/backoffice, pana urca proiectul web/. Nu se publica.",
+  "scripts": {
+    "dev": "vite --port 5173 --strictPort",
+    "typecheck": "tsc --noEmit -p .",
+    "build": "tsc --noEmit -p . && vite build"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tailwindcss": "^4.3.5",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.8"
+  }
+}
