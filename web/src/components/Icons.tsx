@@ -1,0 +1,13 @@
+type P = { className?: string };
+const base = { fill: 'none', stroke: 'currentColor', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
+export const IconX = ({ className = 'size-5' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M6 6l12 12M18 6L6 18" /></svg>);
+export const IconBack = ({ className = 'size-5' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2.2} className={className} {...base}><path d="M15 5l-7 7 7 7" /></svg>);
+export const IconInfo = ({ className = 'size-4' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5v.5" /></svg>);
+export const IconCheck = ({ className = 'size-4' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={3} className={className} {...base}><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>);
+export const IconClock = ({ className = 'size-7' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>);
+export const IconAlert = ({ className = 'size-7' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><circle cx="12" cy="12" r="8.5" /><path d="M12 8v5M12 16.2v.5" /></svg>);
+export const IconHourglass = ({ className = 'size-7' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9" /></svg>);
+export const IconParty = ({ className = 'size-7' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M4 20l4.5-12 7.5 7.5z" /><path d="M14 4v2M18 6l-1.5 1.5M20 10h-2M12 8.5l1.5-1.5M15.5 12l2-.5" /></svg>);
+export const IconShield = ({ className = 'size-4' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" /></svg>);
+export const IconChevron = ({ className = 'size-4' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M9 5l7 7-7 7" /></svg>);
+export const IconArrow = ({ className = 'size-4' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M5 12h13M13 6l6 6-6 6" /></svg>);
