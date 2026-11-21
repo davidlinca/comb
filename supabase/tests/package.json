@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:schema": "node schema.test.mjs ../migrations/20261120231817_init_schema.sql"
+    "test:schema": "node schema.test.mjs ../migrations/20261120231817_init_schema.sql",
+    "test:seed": "node seed.test.mjs ../migrations/20261120231817_init_schema.sql ../../data/seed_demo.sql"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.17"
