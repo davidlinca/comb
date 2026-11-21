@@ -7,7 +7,7 @@ import { bad, conflict, onlyKeys, readJson } from '../lib/http.ts';
 import { catalog, myApplication, myCustomer } from '../lib/data.ts';
 import { admin } from '../lib/supabase.ts';
 import { appendLedger } from '../lib/ledger.ts';
-import { nextStep } from '../lib/flow.ts';
+import { nextStep, pickCurrent } from '../lib/flow.ts';
 import {
   assessAffordability, BANK_SOURCE, buildQuote, canonicalJson, countLateBills12m, DEBT_ADVICE, localDate, QuoteError, sha256Hex,
   validateAssessmentInput,
@@ -224,6 +224,41 @@ r.post('/applications/:id/assessment', async (c) => {
     metrics: { dti_pct: res.metrics.dti_pct, residual_lei: res.metrics.residual_lei, late_bills_12m: res.metrics.late_bills_12m },
     verification: vf,
     human_review_available: true, debt_advice: res.debt_advice,
+  });
+});
+
+// 6c. GET /applications/current  (cardul „Cererea ta” din magazin; decizie 21.11, 15:55)
+// Ultima cerere neincheiata a clientului (in curs / in analiza / aprobata / contract activ), fara cele arhivate.
+// Trebuie inregistrata INAINTE de /applications/:id. Doar citire, fara jurnal.
+r.get('/applications/current', async (c) => {
+  const db = c.get('db');
+  const cu = await myCustomer(db, c.get('userId'));
+  const { data, error } = await db.from('applications')
+    .select('id, status, sku, product_id, term_months, installment_lei, installments, total_payable_lei, created_at, agreements(id, status)')
+    .eq('customer_id', cu.id).is('archived_at', null).order('created_at', { ascending: false }).limit(20);
+  if (error) throw new Error(error.message);
+  const one = (v: unknown) => (Array.isArray(v) ? v[0] ?? null : v ?? null) as { id: string; status: string } | null;
+  const rows = (data ?? []).map((a) => ({ ...a, agreement: one(a.agreements), agreement_status: one(a.agreements)?.status ?? null }));
+  const cur = pickCurrent(rows);
+  if (!cur) return c.json({ application: null });
+
+  const [cons, secci, dev] = await Promise.all([
+    db.from('consents').select('purpose, granted').eq('application_id', cur.id),
+    db.from('secci_documents').select('id').eq('application_id', cur.id).limit(1),
+    db.from('devices').select('name').eq('sku', cur.sku).maybeSingle(),
+  ]);
+  for (const x of [cons, secci, dev]) if (x.error) throw new Error(x.error.message);
+  return c.json({
+    application: {
+      application_id: cur.id, status: cur.status, created_at: cur.created_at,
+      next_step: nextStep(cur.status, {
+        consents_given: (cons.data ?? []).some((x) => x.purpose === 'privacy_notice' && x.granted),
+        secci_shown: (secci.data ?? []).length > 0,
+      }),
+      sku: cur.sku, device_name: dev.data?.name ?? cur.sku, product_id: cur.product_id, term_months: cur.term_months,
+      installment_lei: Number(cur.installment_lei), installments: cur.installments, total_payable_lei: Number(cur.total_payable_lei),
+      agreement_id: cur.agreement?.id ?? null, agreement_status: cur.agreement_status,
+    },
   });
 });
 

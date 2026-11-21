@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   type AgreementLike, canWithdrawNow, cleanMessage, dataRo, demoToday, isDemoDays, isOtpFormat, isReviewable, newOtpCode,
-  nextStep, OTP_MAX_ATTEMPTS, otpHash, otpState, reminderDue, reminderText, safeEqual, sameKeyFigures,
+  isInProgress, nextStep, OTP_MAX_ATTEMPTS, pickCurrent, otpHash, otpState, reminderDue, reminderText, safeEqual, sameKeyFigures,
 } from './flow.ts';
 import { buildQuote, localDate, reminderWindow, withdrawalAmount, withdrawalDeadline } from '../../_shared/engine/index.ts';
 
@@ -140,4 +140,20 @@ test('reminder: data in format romanesc', () => {
   assert.equal(dataRo('2026-12-05'), '5 dec. 2026');
   assert.equal(dataRo('2027-09-01'), '1 sept. 2027');
   assert.equal(reminderText('2026-12-05'), 'Iti amintim ca te poti retrage din contract pana la 5 dec. 2026, fara motiv.');
+});
+
+test('cardul „Cererea ta”: ultima cerere neincheiata', () => {
+  const a = (status: string, created_at: string, agreement_status: string | null = null) => ({ status, created_at, agreement_status });
+  assert.equal(isInProgress(a('draft', '1')), true);
+  assert.equal(isInProgress(a('manual_review', '1')), true);
+  assert.equal(isInProgress(a('approved', '1')), true);
+  assert.equal(isInProgress(a('signed', '1', 'active')), true);
+  assert.equal(isInProgress(a('signed', '1', 'withdrawn')), false);
+  assert.equal(isInProgress(a('rejected', '1')), false);
+  assert.equal(isInProgress(a('cancelled', '1')), false);
+  // cea mai noua respinsa e sarita, se ia urmatoarea in curs
+  const list = [a('approved', '2026-11-21T10:00'), a('rejected', '2026-11-21T12:00'), a('signed', '2026-11-21T09:00', 'active')];
+  assert.equal(pickCurrent(list)?.created_at, '2026-11-21T10:00');
+  assert.equal(pickCurrent([a('rejected', '1'), a('signed', '2', 'withdrawn')]), null);
+  assert.equal(pickCurrent([]), null);
 });

@@ -36,6 +36,21 @@ export function nextStep(status: string, f: { consents_given: boolean; secci_sho
   }
 }
 
+/**
+ * Cardul „Cererea ta” din magazin (decizie 21.11, 15:55): ultima cerere NEINCHEIATA a clientului.
+ * In curs = draft, manual_review, approved sau semnata cu contract activ. Nu conteaza: respinsa, anulata,
+ * contract retras. Cererile arhivate (curatare demo) sunt filtrate inainte, in interogare.
+ */
+export type CurrentCandidate = { status: string; created_at: string; agreement_status: string | null };
+export function isInProgress(a: CurrentCandidate): boolean {
+  if (a.status === 'draft' || a.status === 'manual_review' || a.status === 'approved') return true;
+  return a.status === 'signed' && a.agreement_status === 'active';
+}
+export function pickCurrent<T extends CurrentCandidate>(apps: T[]): T | null {
+  return [...apps].sort((x, y) => (x.created_at < y.created_at ? 1 : x.created_at > y.created_at ? -1 : 0))
+    .find(isInProgress) ?? null;
+}
+
 // ---------- OTP (simulat, dar tratat ca un secret real) ----------
 
 export const OTP_TTL_S = 300;            // expira in 5 minute

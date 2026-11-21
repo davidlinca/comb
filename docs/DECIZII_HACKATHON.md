@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 15:40 (**alte rate vazute in contul bancar – engine-v3, contract v0.4** in sectiunea 6; regula in sectiunea 5; Mihai: banca 750 lei; scena art. 35 si recomandarea prudenta raman in afara codului – sectiunea 16). Versiunea 15:00 (**formatul prezentarii anuntat de organizatori la 13:34**: 3 min business + 1 min demo inregistrat + 2 min Q&A, fara laptop propriu – sectiunile 1, 10, 11). Versiunea 14:50 (aplicatia live pe Vercel, testata cap-coada; statusul din sectiunea 15). Versiunea 14:25 (numele operatorului in SECCI: „Telvia (demo)”, sectiunea 1). Versiunea 13:05: adaugata sectiunea 16, idei de roadmap de la mentori. Versiunea 12:15: verificarea venitului prin Open Banking simulat – contract v0.3 in sectiunea 6, regula in sectiunea 5, checklist 4–5). Versiunea 11:30: pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 16:15 (decizii noi: cardul „Cererea ta” – ruta 6c, contract v0.5; scena art. 35 SE FACE: amanare cu dobanda pe luna in plus, reesalonare +6 luni; QR pe ultimul slide – sectiunile 1, 6, 16). Versiunea 15:40 (**alte rate vazute in contul bancar – engine-v3, contract v0.4** in sectiunea 6; regula in sectiunea 5; Mihai: banca 750 lei; scena art. 35 si recomandarea prudenta raman in afara codului – sectiunea 16). Versiunea 15:00 (**formatul prezentarii anuntat de organizatori la 13:34**: 3 min business + 1 min demo inregistrat + 2 min Q&A, fara laptop propriu – sectiunile 1, 10, 11). Versiunea 14:50 (aplicatia live pe Vercel, testata cap-coada; statusul din sectiunea 15). Versiunea 14:25 (numele operatorului in SECCI: „Telvia (demo)”, sectiunea 1). Versiunea 13:05: adaugata sectiunea 16, idei de roadmap de la mentori. Versiunea 12:15: verificarea venitului prin Open Banking simulat – contract v0.3 in sectiunea 6, regula in sectiunea 5, checklist 4–5). Versiunea 11:30: pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -44,6 +44,9 @@ Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 | Orele din plan | Orientative: cand un pas e gata mai devreme, trecem la urmatorul (21.11, 03:00) |
 | Verificarea venitului (art. 18(3)) | Al 3-lea acord, separat si nebifat: datele din contul bancar (Open Banking, **simulat**). Venit folosit = min(declarat, banca), cheltuieli = max(declarat, banca). **Fara acord sau fara date → revizuire umana**, niciodata aprobare automata pe venit nedovedit. `bank_data` obligatoriu true/false in `/consents` (21.11, 11:45) |
 | Numele operatorului | **Telvia** (ales de David). In SECCI, ca intermediar: „Telvia (demo)” – marcat fictiv, ca si creditorul „Credis IFN (demo)”. Se aplica SECCI-urilor noi; cele salvate deja raman neschimbate (21.11, 14:20) |
+| Cardul „Cererea ta” (magazin) | Un singur card cu **ultima cerere neincheiata** (in analiza / aprobata / draft / contract activ) + buton spre pasul corect. Ruta noua `GET /applications/current` (6c). Rezolva „Mihai nu are drum inapoi dupa aprobare” (21.11, 15:55) |
+| Scena „rata ratata” (art. 35) | **Se face** (21.11, 15:55). „Amana rata o luna” costa doar dobanda pe luna in plus (afisata exact, fara comisioane); „Reesaloneaza” = restul de plata pe ratele ramase + 6 luni, aceeasi dobanda, fara comision; „Vorbeste cu un om” intra in coada din back-office. In demo prima rata e considerata neplatita (aplicatia nu tine evidenta platilor) |
+| QR spre aplicatia live | Pe ultimul slide, pentru juriu (David) (21.11, 15:55) |
 | Date curate pentru demo | Nu stergem nimic. Coloana `applications.archived_at`: cererile arhivate dispar din back-office (lista + coada), jurnalul ramane valid. `data/archive_demo.sql` arhiveaza toate cererile celor 3 conturi demo; il ruleaza Bogdan in SQL Editor inainte de repetitii si inainte de pitch (21.11, 11:20) |
 
 ---
@@ -216,6 +219,7 @@ ZERO4 e intentionat in demo: il da un creditor partener (tert), pe mai mult de 5
 | 4 | POST | `/applications` | 1→2 | P0 |
 | 5 | POST | `/applications/{id}/consents` | 3 | P0 |
 | 6 | POST | `/applications/{id}/assessment` | 3→4 | P0 |
+| 6c | GET | `/applications/current` (nou in v0.5) | 1 | P1 |
 | 6b | GET | `/applications/{id}` (nou in v0.2) | 2–6 | P0 |
 | 7 | POST | `/applications/{id}/human-review` | 4 | P0 |
 | 8 | GET | `/applications/{id}/secci` | 5 | P0 |
@@ -262,6 +266,11 @@ Trimis lui David la 11:50. Ecranele 3 si 4.
 - **6b `GET /applications/{id}`** – `decision.verification`, aceeasi forma (pe evaluarile vechi: `used_lei` = declarat).
 - **16 `GET /backoffice/reviews`** – `assessment` are in plus `bank_data_used`, `income_verified_lei`, `income_used_lei`, `expenses_verified_lei`, `expenses_used_lei`; back-office-ul arata „Venit neverificat: cere un document” cand lipseste verificarea.
 - Jurnal: `assessment_done` are in payload `income_verification` (`open_banking_simulated` / `no_consent` / `unavailable`) si `engine_version: "engine-v2"`.
+
+### Schimbari v0.5 (21.11, 16:15) – cardul „Cererea ta”
+- **6c `GET /applications/current`** (nou, doar client; operator → 403). Raspuns `{ "application": null }` sau
+  `{ "application": { "application_id", "status", "created_at", "next_step", "sku", "device_name", "product_id", "term_months", "installment_lei", "installments", "total_payable_lei", "agreement_id", "agreement_status" } }`.
+  Se ia ultima cerere **in curs**: `draft`, `manual_review`, `approved` sau `signed` cu contract `active` (nu respinse, nu contracte retrase, nu arhivate). `next_step` ca la 6b → butonul duce la ecranul potrivit (`wait_review` → rezultat, `secci`/`sign` → oferta, `agreement` → `/c/{agreement_id}`, `consents`/`assessment` → buget).
 
 ### Schimbari v0.4 (21.11, 15:40) – alte rate vazute in contul bancar (engine-v3)
 Fara schimbari in ce trimite front-ul. Ecranul 4 si back-office-ul le-am actualizat noi (PR `feat/backend-bank-installments`, cu acordul lui Bogdan).
@@ -558,7 +567,7 @@ Planul vechi de slide-uri (sursa de continut, de comprimat in 3 minute):
 | A 3-a cifra din banca: „rate platite lunar, vazute in cont” (prinde BNPL / rate la magazin / IFN care nu raporteaza la Birou). Alte rate = max(declarat, Birou, banca) | **FACUT (21.11, 15:40, engine-v3)** – vezi sectiunile 5 si 6 (v0.4) | Verificare in plus, nu colectare in plus |
 | „Toate datele bancare posibile” | **Nu** | CCD2 art. 18(3) + GDPR: doar date necesare si proportionale; tranzactiile complete dezvaluie date interzise (sanatate, religie, politic). Argument de pitch: „luam doar ce trebuie” |
 | Recomandari de tip „ai venit mare, ia o rata mai mare / un telefon mai scump” sau „respins pe 12 luni, ia pe 24” | **Nu** | Upselling de credit (art. 17), risc de supra-indatorare; recomandarea personalizata = servicii de consiliere (art. 16) + informare (art. 13) |
-| Scena „rata ratata” (art. 35): la ziua 35 prima rata e neplatita → card bland cu amanare o luna / reesalonare / vorbeste cu un om, totul in jurnal | Explicata lui Bogdan (21.11, 15:15): ~2–3 ore noi + ~1 ora David, ~5 s in video. Recomandare: doar in pitch („ce urmeaza”) si la Q&A. **Decizia finala: deschisa** | Art. 35 cere masuri de toleranta inainte de executare |
+| Scena „rata ratata” (art. 35): la ziua 35 prima rata e neplatita → card bland cu amanare o luna / reesalonare / vorbeste cu un om, totul in jurnal | **Se face** (Bogdan, 21.11, 15:55) – regulile in sectiunea 1 | Art. 35 cere masuri de toleranta inainte de executare |
 | Recomandare prudenta: „daca iti permiti rata pe 12 luni, platesti cu X lei mai putin in total decat pe 24” | Roadmap (pitch); **nu o implementam** (Bogdan, 21.11, 15:10) | Reduce costul, in interesul clientului; cere ecran nou la David |
 
 Detaliile tehnice, regulile de lucru si pasii urmatori exacti sunt in `PREDARE_CLAUDE.md` (in proiect si in `docs/`).
