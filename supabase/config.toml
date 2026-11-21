@@ -1,0 +1,7 @@
+# Config minim pentru Supabase CLI (doar deploy de functii).
+project_id = "comb"
+
+[functions.api]
+# Cheile noi (sb_publishable_/sb_secret_) nu sunt JWT, deci verificarea platformei e oprita.
+# Tokenul userului il verifica API-ul la fiecare cerere (lib/auth.ts, getClaims).
+verify_jwt = false
