@@ -98,8 +98,12 @@ export function reminderDue(a: AgreementLike, today: string, alreadySent: boolea
   return today >= a.reminder_from && today <= a.reminder_to;
 }
 
+// 'YYYY-MM-DD' -> '5 dec. 2026' (formatul romanesc din aplicatie).
+const fmtDataRo = new Intl.DateTimeFormat('ro-RO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+export const dataRo = (d: string) => fmtDataRo.format(new Date(`${d}T00:00:00Z`));
+
 export const reminderText = (deadline: string) =>
-  `Iti amintim ca te poti retrage din contract pana la ${deadline}, fara motiv.`;
+  `Iti amintim ca te poti retrage din contract pana la ${dataRo(deadline)}, fara motiv.`;
 
 export const isDemoDays = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 60;
 

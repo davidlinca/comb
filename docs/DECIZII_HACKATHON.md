@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 14:25 (numele operatorului in SECCI: „Telvia (demo)”, sectiunea 1). Versiunea 13:05: adaugata sectiunea 16, idei de roadmap de la mentori. Versiunea 12:15: verificarea venitului prin Open Banking simulat – contract v0.3 in sectiunea 6, regula in sectiunea 5, checklist 4–5). Versiunea 11:30: pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 14:50 (aplicatia live pe Vercel, testata cap-coada; statusul din sectiunea 15). Versiunea 14:25 (numele operatorului in SECCI: „Telvia (demo)”, sectiunea 1). Versiunea 13:05: adaugata sectiunea 16, idei de roadmap de la mentori. Versiunea 12:15: verificarea venitului prin Open Banking simulat – contract v0.3 in sectiunea 6, regula in sectiunea 5, checklist 4–5). Versiunea 11:30: pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -514,7 +514,7 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 
 ---
 
-## 15. Status (21.11, 12:15)
+## 15. Status (21.11, 14:50)
 
 | Ce | Stare |
 |---|---|
@@ -526,8 +526,8 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 | API partea 2 (rutele 6b, 7–16) | publicat (versiunea 3, `OTP_PEPPER` setat); test pe server 62/63 – singurul FAIL era in test (ordinea cheilor din jsonb), reparat; local: 12 teste noi + 25 motor |
 | Back-office (`web/src/backoffice/`) | scris, decuplat de restul aplicatiei; testat pe API-ul real cu operatorul, prin pagina de proba `tools/backoffice-dev/`. Se leaga cu o singura ruta `/backoffice` cand urca David `web/` (vezi `web/src/backoffice/README.md`) |
 | ZERO4 (casti, 4 rate, 0%) | verificat pe server cap-coada (smoke 71/71); la retragere textul spune „fara dobanda” |
-| Aplicatia clientului (`web/`, David) | in lucru la David, inca nu e pe GitHub (10:45) |
-| Deploy Vercel + QR | urmeaza (il importa David cand merge login-ul pe API) |
+| Aplicatia clientului (`web/`, David) | ecranele 0–6 in `main` (PR #13, #16), legate de API-ul real, back-office la `/backoffice` |
+| Deploy Vercel + QR | live: https://comb-sigma.vercel.app, CORS setat; testat 14:50 (Ana pana la retragere, Ioana respinsa, Mihai aprobat din back-office, jurnale valide). QR: de facut pentru deck |
 | Arhivare cereri demo | migratia `20261121091630 application_archive` aplicata, PR merge-uit, arhivarea rulata |
 | Verificarea venitului (Open Banking simulat) | migratia `20261121094520 bank_verification` aplicata + date bancare pentru cei 63 de clienti; motor `engine-v2` (33/33), API si back-office scrise; de facut: PR + deploy + smoke; David: casuta 3 + blocul „Ce am verificat” |
 | Arhitectura | `docs/ARHITECTURA.md`: diagrame, toate rutele, starile cererii, exemplul Ana, jurnalul, securitatea |

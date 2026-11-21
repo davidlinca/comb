@@ -3,8 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  type AgreementLike, canWithdrawNow, cleanMessage, demoToday, isDemoDays, isOtpFormat, isReviewable, newOtpCode,
-  nextStep, OTP_MAX_ATTEMPTS, otpHash, otpState, reminderDue, safeEqual, sameKeyFigures,
+  type AgreementLike, canWithdrawNow, cleanMessage, dataRo, demoToday, isDemoDays, isOtpFormat, isReviewable, newOtpCode,
+  nextStep, OTP_MAX_ATTEMPTS, otpHash, otpState, reminderDue, reminderText, safeEqual, sameKeyFigures,
 } from './flow.ts';
 import { buildQuote, localDate, reminderWindow, withdrawalAmount, withdrawalDeadline } from '../../_shared/engine/index.ts';
 
@@ -134,4 +134,10 @@ test('oferta: aceleasi cifre cheie indiferent de ziua semnarii; o diferenta e de
   assert.equal(sameKeyFigures(snap, q2), true);
   assert.equal(q2.schedule[0].due_date, '2026-12-22'); // graficul porneste de la data semnarii
   assert.equal(sameKeyFigures({ ...snap, installment_lei: 106.53 }, q2), false);
+});
+
+test('reminder: data in format romanesc', () => {
+  assert.equal(dataRo('2026-12-05'), '5 dec. 2026');
+  assert.equal(dataRo('2027-09-01'), '1 sept. 2027');
+  assert.equal(reminderText('2026-12-05'), 'Iti amintim ca te poti retrage din contract pana la 5 dec. 2026, fara motiv.');
 });

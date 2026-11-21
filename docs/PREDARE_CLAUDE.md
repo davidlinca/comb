@@ -1,6 +1,6 @@
 # Predare pentru Claude – conversatia urmatoare
 
-Versiune: sambata 21.11.2026, 14:20 (pasii 1–3 din 5.0 facuti: ecranele 0–4 si `feat/backend-web-fixes` in `main` la `e106624`, arhivarea rulata la 14:11; urmeaza Vercel). Versiunea 13:55: ecranele 0–4 ale lui David testate live pe API-ul real; lista de lucru noua in 5.0. Versiunea 12:15: verificarea venitului prin Open Banking simulat: migratie + date + engine-v2 + API v0.3; inainte: arhivare cereri demo + `docs/ARHITECTURA.md`; pitch in engleza 3–5 min, aplicatia ramane in romana; urmeaza integrarea cu David – vezi 5.0). Scris pentru conversatia noua (Opus 5.5, effort extra).
+Versiune: sambata 21.11.2026, 14:50 (Vercel live https://comb-sigma.vercel.app, testat cap-coada: Ana pana la retragere, Ioana, Mihai aprobat de operator; „Telvia (demo)” publicat (api v7); reminder cu data in romana – scris, de publicat). Versiunea 14:20 (pasii 1–3 din 5.0 facuti: ecranele 0–4 si `feat/backend-web-fixes` in `main` la `e106624`, arhivarea rulata la 14:11; urmeaza Vercel). Versiunea 13:55: ecranele 0–4 ale lui David testate live pe API-ul real; lista de lucru noua in 5.0. Versiunea 12:15: verificarea venitului prin Open Banking simulat: migratie + date + engine-v2 + API v0.3; inainte: arhivare cereri demo + `docs/ARHITECTURA.md`; pitch in engleza 3–5 min, aplicatia ramane in romana; urmeaza integrarea cu David – vezi 5.0). Scris pentru conversatia noua (Opus 5.5, effort extra).
 Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spune CUM lucram, UNDE e totul, CE e gata si CE urmeaza exact.
 
 ---
@@ -47,7 +47,7 @@ Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spun
 | Migratii aplicate | `20261120231817 init_schema`, `20261121091630 application_archive` (coloana `applications.archived_at` + index partial; 21.11, 11:16), `20261121094520 bank_verification` (acord `bank_data`, tabel `bank_account_insights`, 5 coloane in `assessments`; 21.11, 11:45). Date: `data/bank_insights.sql` rulat (63 de randuri) |
 | Secrete Edge Function | `OTP_PEPPER` (setat de Bogdan cu `npx supabase secrets set` pe 21.11, valoarea nu apare nicaieri), `ALLOWED_ORIGINS` (de setat cu domeniul Vercel) |
 | Conturi demo | `ana@`, `mihai@`, `ioana@demo.comb.ro` – parola `Demo2026!` (publica, in front). `operator@demo.comb.ro` – parola doar la Bogdan, `app_metadata.role = operator` |
-| Vercel | conectorul Vercel e conectat in claude.ai; proiectul NU e inca legat de repo. Repo-ul e pe contul lui David |
+| Vercel | **Live: https://comb-sigma.vercel.app** (proiect pe contul lui David, root `web`, se republica singur la fiecare merge in `main`). `ALLOWED_ORIGINS` = `https://comb-sigma.vercel.app,http://localhost:5173,http://127.0.0.1:5173` (setat de Bogdan la 14:35). Conectorul Vercel din claude.ai e pe contul lui Bogdan si nu vede proiectul |
 | Proiect claude.ai | „HACKATHON”: `DECIZII_HACKATHON.md`, `PREDARE_CLAUDE.md`, brieful PDF, 2 poze cu notite de pitch |
 | Doc de invatare pentru Bogdan | https://claude.ai/artifact/Gppawttr1LQRGWbNVNb36b (Docs) |
 
@@ -171,9 +171,9 @@ Gata: schema, motor (engine-v2), date demo + date bancare, API 1–16, back-offi
 | 1 | ~~David da merge la `feat/david-web`~~ – FACUT (PR #13) | David | – | – |
 | 2 | ~~Comenzile git din 5.4 → PR → merge~~ – FACUT (PR #14, `main` la `e106624`, 14:10) | Bogdan | – | – |
 | 3 | ~~`data/archive_demo.sql` in SQL Editor~~ – FACUT (14:11, 0 cereri demo vizibile, 0 jurnale invalide) | Bogdan | – | – |
-| 4 | Vercel: David importa (root `web`), da domeniul; Bogdan: `npx supabase secrets set ALLOWED_ORIGINS=https://<domeniu>,http://localhost:5173 --project-ref ezynswlvqqrzahpblkxu`; Claude testeaza pe URL-ul public (Ana, Ioana, Mihai → back-office cu operatorul) | David + Bogdan + Claude | 15:00 | medium |
-| 5 | Numele operatorului in SECCI: `OPERATOR_NAME = 'Telvia (demo)'` in `lib/flow.ts` – SCRIS (14:20, flow 12/12), de comis + redeploy de Bogdan (modelele „Nova 3/5/7/9”, „Casti Air” sunt deja in baza) | noi | 15:30 | medium |
-| 6 | Ecranele 5–6 (SECCI, confirmare, OTP, contract, retragere, „Sari la ziua 3”) | David | 18:30 | – |
+| 4 | ~~Vercel + CORS + test pe URL-ul public~~ – FACUT (14:50): Ana aprobata → SECCI cu „Telvia (demo)” → email → OTP → semnare → ziua 3 (reminder) → retragere 2.201,69 lei; Ioana respinsa cu consiliere; Mihai in revizuire → aprobat din back-office (Bogdan a introdus parola) → ecranul lui arata „Decizie luata de un specialist” + „Vezi oferta”; jurnale valide | – | – | – |
+| 5 | ~~„Telvia (demo)” in SECCI~~ – FACUT (PR #15, deploy v7, vazut pe Vercel). In plus: `reminderText` cu data in romana („5 dec. 2026”, `dataRo` in `lib/flow.ts`, flow 13/13 Node + Deno, `deno check` ok) – SCRIS 14:50, de comis + redeploy | Bogdan | acum | – |
+| 6 | ~~Ecranele 5–6~~ – FACUT de David (PR #16, rutele `/a/:id/oferta`, `/confirma`, `/semnare`, `/c/:aid`), verificate fata de contract | David | – | – |
 | 7 | Integrare 5–6 pe API-ul real + test cap-coada (Ana cu retragere, Mihai cu aprobare live, ZERO4) | noi + David | 19:00 (poarta) | high |
 | 8 | Testul SECCI cu 3–5 oameni (cifra inainte/dupa) | David | 19:30 | – |
 | 9 | Slide tehnic + securitate (EN) + diagrama de arhitectura | noi | 21:00 | high |
@@ -183,7 +183,7 @@ Gata: schema, motor (engine-v2), date demo + date bancare, API 1–16, back-offi
 | 13 | Dum 09:30–12:00: 3 repetitii cronometrate + Q&A (raspunsuri EN in ghid, cap. 13) | ambii | 12:00 | – |
 | 14 | Arhivare (`archive_demo.sql`) inainte de fiecare repetitie si inainte de pitch; trimitere | ambii | tinta 12:45, limita 13:30 | – |
 
-Observatii din testul live (13:45): pe un ecran scund de laptop sheet-ul de la „Alege perioada” se taie sus – pe telefon (844 px) e ok; de verificat pe Vercel. Mihai → back-office nu a fost testat live (cere parola operatorului).
+Observatii din testul pe Vercel (14:50), trimise lui David: (1) pe ecran scund de laptop (674–730 px) sheet-ul „Alege perioada” se deruleaza cu pagina si se taie sus; (2) dupa semnare scrie „O copie a contractului a fost trimisa pe email” – trebuie „(simulat)”; (3) Mihai nu are din magazin drum inapoi la cererea aprobata – in demo tinem tab-ul lui deschis pe `/a/<id>/rezultat` si apasam „Verifica din nou” dupa aprobare (sau un card „Cererea ta” in magazin, care ar cere o ruta noua `GET /applications` – nedecis). Observatii din testul live (13:45): pe un ecran scund de laptop sheet-ul de la „Alege perioada” se taie sus – pe telefon (844 px) e ok; de verificat pe Vercel. Mihai → back-office nu a fost testat live (cere parola operatorului).
 
 ### 5.4 FACUT (14:10) – ajustarile web din testul live
 PR #14 `feat/backend-web-fixes` (`a9c5c12`) merge-uit dupa PR #13 (ecranele 0–4 ale lui David): `web/src/pages/BudgetSheet.tsx` (textul despre contul bancar), `web/src/pages/DecisionSheet.tsx` (decizie dupa specialist, iconite dupa codul motivului), `supabase/tests/api_smoke.mjs` (14 evenimente la Ana), `docs/DECIZII_HACKATHON.md` sectiunea 16. David poate atinge din nou cele 2 fisiere. Bogdan e pe `main`.
