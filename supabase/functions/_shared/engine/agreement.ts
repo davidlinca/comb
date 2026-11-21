@@ -35,9 +35,11 @@ export function withdrawalAmount(principalLei: number, nominalRatePct: number, s
     interest_lei: interest,
     amount_to_return_lei: round2(principalLei + interest),
     return_by: addDays(withdrawDate, RETURN_DAYS),
-    text: days === 0
-      ? `Returnezi suma primita (${principalLei.toFixed(2).replace('.', ',')} lei), in maximum ${RETURN_DAYS} de zile. Nu platesti dobanda, pentru ca te retragi in aceeasi zi.`
-      : `Returnezi suma primita si dobanda pentru ${days} ${days === 1 ? 'zi' : 'zile'} folosite, in maximum ${RETURN_DAYS} de zile.`,
+    text: nominalRatePct === 0
+      ? `Returnezi suma primita, fara dobanda, in maximum ${RETURN_DAYS} de zile.` // credit 0% (ex. ZERO4)
+      : days === 0
+        ? `Returnezi suma primita (${principalLei.toFixed(2).replace('.', ',')} lei), in maximum ${RETURN_DAYS} de zile. Nu platesti dobanda, pentru ca te retragi in aceeasi zi.`
+        : `Returnezi suma primita si dobanda pentru ${days} ${days === 1 ? 'zi' : 'zile'} folosite, in maximum ${RETURN_DAYS} de zile.`,
   };
 }
 
