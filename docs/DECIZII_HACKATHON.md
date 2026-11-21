@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 02:40 (adaugate: sectiunile 13–14, proiectul Supabase si regula de merge din sectiunea 7, regulile de calcul din sectiunea 5, valorile exacte si schimbarile v0.1 din sectiunea 6). Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 02:50 (adaugate: sectiunile 13–15, proiectul Supabase si regula de merge din sectiunea 7, regulile de calcul din sectiunea 5, valorile exacte si schimbarile v0.1 din sectiunea 6). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -469,3 +469,19 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 | 12 | Secrete doar in variabile de mediu; `.env.local` in `.gitignore`, `.env.example` in repo | repo | P0 |
 | 13 | Limita de cereri pe OTP (3 coduri / 10 minute) | API | P1 |
 | 14 | Security Advisor Supabase fara avertismente | Supabase | P1 |
+
+---
+
+## 15. Status (21.11, 02:50)
+
+| Ce | Stare |
+|---|---|
+| Proiect Supabase `comb` | creat, Frankfurt, Free |
+| Schema + RLS (15 tabele) | aplicata, testata (25/25 local), Security Advisor fara probleme reale |
+| Motorul (DAE, decizie, retragere, SECCI) | in repo, 25/25 teste in Node si Deno |
+| Date demo | pe server: 63 clienti, 983 facturi, 44 cereri, jurnale valide; conturile legate, operatorul are rol |
+| API partea 1 (rutele 1–6) | publicat, test pe server 15/15 |
+| API partea 2 (rutele 7–16) | urmeaza (sambata dimineata) |
+| Back-office, deploy Vercel, QR | urmeaza (sambata seara) |
+
+Detaliile tehnice, regulile de lucru si pasii urmatori exacti sunt in `PREDARE_CLAUDE.md` (in proiect si in `docs/`).

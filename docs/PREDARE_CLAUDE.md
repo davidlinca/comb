@@ -1,0 +1,178 @@
+# Predare pentru Claude – conversatia urmatoare
+
+Versiune: sambata 21.11.2026, 02:50. Scris pentru conversatia noua (Opus 5.5, effort extra).
+Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spune CUM lucram, UNDE e totul, CE e gata si CE urmeaza exact.
+
+---
+
+## 0. Primii pasi in conversatia noua (in ordinea asta)
+
+1. Citeste COMPLET, din proiectul claude.ai „HACKATHON”: `HACKATHON/DECIZII_HACKATHON.md` si `HACKATHON/PREDARE_CLAUDE.md` (fisierul asta). Brieful (`Telco_Embedded_Financing_Challenge_Nov_2026.pdf`) si cele 2 poze cu notite de pitch le citesti doar daca ai nevoie.
+2. Ataseaza repo-ul: `add_repo` owner `davidlinca`, repo `comb`, apoi `git clone --depth 1 https://github.com/davidlinca/comb /home/claude/comb`. Push-ul din sesiune e refuzat (aplicatia Claude nu e instalata pe contul lui David) – nu e nevoie: Bogdan da commit-urile.
+3. Cere acces la folderul lui Bogdan: `device_request_folder_access` cu `D:\HACKATHON\comb`. Acolo scrii fisierele (vezi sectiunea 6).
+4. Verifica starea pe server (doar citire): `list_migrations`, `list_edge_functions`, numaratori din tabele, `ledger_verify` pe toate cererile.
+5. Da-i lui Bogdan un rezumat de maximum 8 randuri + intrebarile deschise (sectiunea 5.3), apoi incepi API partea 2.
+
+---
+
+## 1. Reguli de lucru (cerute de Bogdan – respecta-le strict)
+
+- **Raspunsuri scurte, pas cu pas, in romana.** Textele pe care Bogdan le da altora (titlu/descriere PR, mesaje WhatsApp catre David) sunt **fara diacritice**, scurte.
+- **Orice decizie o luati impreuna:** intrebi cu variante + recomandare (unealta AskUserQuestion), inclusiv decizii mici care schimba contractul API, datele sau comportamentul vizibil. Nu decizi singur.
+- **Baza de date:** inainte de orice aplicare (migratii, RLS, date, update-uri) arati exact ce rulezi si astepti aprobarea. Nu stergi si nu suprascrii nimic fara confirmare. Citirile (select, advisors, logs) sunt ok fara aprobare.
+- **Inainte de aplicare: testezi local** (vezi 4.4 – PGlite pentru SQL, Node + Deno pentru motor, `deno check` pentru API).
+- **`web/` e al lui David.** Nu-l modifici fara sa intrebi. Back-office-ul il facem noi; locul propus e `web/src/backoffice/` – **de confirmat cu Bogdan (si David) inainte**.
+- **Git:** lucrezi pe branch-uri `feat/backend-<ce>`. Tu scrii fisierele in `D:\HACKATHON\comb`, **Bogdan da commit, push, PR si merge** (fiecare face merge la PR-urile lui, fara review). La final de pas ii dai comenzile git exacte + titlu si descriere PR (fara diacritice).
+- **Dupa fiecare pas terminat:** raport exact – ce fisiere, ce s-a aplicat, ce teste au trecut, cum verifica el, ce urmeaza.
+- **Schimbari pentru David:** orice schimbare de contract API → (1) mesaj WhatsApp pentru David si Claude-ul lui, prin cardul de mesaj, fara diacritice, **din timp**; (2) actualizezi sectiunea 6 din DECIZII.
+- **`DECIZII_HACKATHON.md` se tine la zi in AMBELE locuri:** in proiect (`project_write` pe `HACKATHON/DECIZII_HACKATHON.md`) si in repo (`docs/DECIZII_HACKATHON.md`, scris in folderul lui Bogdan). Spui exact ce ai schimbat. La fel pentru fisierul asta.
+- **Effort:** spune-i cand sa schimbe. Extra pentru portile complicate (securitate, OTP/semnare, retragere, jurnal), high pentru restul, medium pentru lucruri simple. Sonnet doar pentru ceva foarte usor (nu recomandat). Are reset de tokenuri; sesiunea curenta conteaza doar pentru proiectul asta.
+- **Daca ceva poate fi depasit** (Supabase, Vercel, CCD2): cauti in documentatia oficiala (Supabase `search_docs`, web) inainte sa implementezi.
+- **Nu inventa cifre pentru pitch.** Datele sintetice nu sunt dovezi; cifra „inainte/dupa” vine doar din testul lui David cu oameni.
+
+---
+
+## 2. Unde e totul
+
+| Ce | Valoare |
+|---|---|
+| Repo | https://github.com/davidlinca/comb (public). `main` la `ee01224`. PR-uri merge-uite: #1 schema, #2 motor + date, #3 API partea 1, #4 docs contract v0.1 |
+| Folder local Bogdan | `D:\HACKATHON\comb` (Windows, PowerShell). Montat in device_bash la `$HOME/mnt/comb` |
+| Supabase | proiect `comb`, ref `ezynswlvqqrzahpblkxu`, org „MareBogdan's Org” (Free), regiunea eu-central-1 |
+| URL | `https://ezynswlvqqrzahpblkxu.supabase.co` |
+| Cheia publishable | `sb_publishable_LJBH2tJNlXCXEZCh9ujE2g_IBeMHh2f` (publica, merge in front, doar in headerul `apikey`) |
+| Cheia secret | DOAR in mediul Edge Function (`SUPABASE_SECRET_KEYS`). Niciodata in chat, fisiere sau front |
+| API | `https://ezynswlvqqrzahpblkxu.supabase.co/functions/v1/api` – Edge Function `api`, versiunea 1, `verify_jwt = false` |
+| Migratii aplicate | `20261120231817 init_schema` (singura) |
+| Conturi demo | `ana@`, `mihai@`, `ioana@demo.comb.ro` – parola `Demo2026!` (publica, in front). `operator@demo.comb.ro` – parola doar la Bogdan, `app_metadata.role = operator` |
+| Vercel | conectorul Vercel e conectat in claude.ai; proiectul NU e inca legat de repo. Repo-ul e pe contul lui David |
+| Proiect claude.ai | „HACKATHON”: `DECIZII_HACKATHON.md`, `PREDARE_CLAUDE.md`, brieful PDF, 2 poze cu notite de pitch |
+| Doc de invatare pentru Bogdan | https://claude.ai/artifact/Gppawttr1LQRGWbNVNb36b (Docs) |
+
+**Starea datelor pe server (21.11, 02:45):** 63 clienti, 983 facturi, 44 cereri (42 din seed + 2 create de testul API), 338 intrari in jurnal, 0 jurnale invalide, 7 cereri in coada de revizuire.
+
+---
+
+## 3. Ce e gata
+
+| Pas | Stare | Unde | Teste |
+|---|---|---|---|
+| Schema + RLS (15 tabele) | aplicat pe server | `supabase/migrations/20261120231817_init_schema.sql` | `supabase/tests/schema.test.mjs` – 25/25 (PGlite) |
+| Motorul (DAE, rate, decizie, lista alba, retragere, SECCI) | in repo | `supabase/functions/_shared/engine/` | `engine.test.ts` – 25/25 in Node si Deno |
+| Date demo | aplicat pe server (rulat de Bogdan in SQL Editor) + conturi legate | `data/generate_seed.ts` → `data/seed_demo.sql`, `data/link_accounts.sql` | `supabase/tests/seed.test.mjs` |
+| API partea 1 (rutele 1–6) | publicat (CLI), testat pe server | `supabase/functions/api/` | `supabase/tests/api_smoke.mjs` – 15/15 |
+| Checklist CCD2 + securitate | in DECIZII, sectiunile 13–14 | `docs/` | – |
+
+### 3.1 Schema (rezumat)
+Tabele: `customers`, `billing_history`, `credit_bureau_records`, `devices`, `credit_products`, `applications` (oferta salvata ca snapshot), `consents`, `assessments`, `human_reviews`, `secci_documents`, `otp_challenges`, `agreements` (are `demo_offset_days` pentru „sari la ziua 3”), `notifications`, `ledger_event_types`, `ledger_entries`.
+- Schema `private`: `is_operator()` (din `auth.jwt()->app_metadata->role`), `my_customer_id()` (security definer), `ledger_hash(...)`, trigger-ele jurnalului. `public.ledger_verify(uuid)` – executabila doar de `service_role`.
+- RLS: clientul citeste doar ale lui; operatorul citeste tot; `ledger_entries` doar operatorul; `otp_challenges` fara politici (nimeni din browser).
+- Drepturi: `anon` nu are nimic; `authenticated` doar SELECT; toate scrierile prin API cu cheia secret.
+- Jurnal: trigger BEFORE INSERT pune `seq`, `prev_hash`, `ccd2_ref` (din `ledger_event_types`), `hash` (SHA-256), lock per cerere, `occurred_at` nu poate scadea. UPDATE/DELETE/TRUNCATE blocate pentru oricine.
+- Evenimente existente: `offer_requested`, `ad_warning_shown`, `personalised_offer_disclosed`, `consent_given`, `assessment_done`, `debt_advice_shown`, `human_review_requested`, `human_review_resolved`, `secci_shown`, `secci_viewed`, `secci_emailed`, `otp_sent`, `agreement_signed`, `withdrawal_reminder_sent`, `withdrawn`. Un eveniment NOU cere migrare (insert in `ledger_event_types`).
+- Statusuri `applications.status`: `draft`, `approved`, `manual_review`, `rejected`, `signed`, `cancelled`. `agreements.status`: `active`, `withdrawn`.
+
+### 3.2 Motorul (`supabase/functions/_shared/engine/`)
+Pur TypeScript, fara DB/retea, aceleasi teste in Node si Deno. Exporta din `index.ts`: `buildQuote`, `aprPct`, `assessAffordability`, `countLateBills12m`, `validateAssessmentInput`, `withdrawalDeadline`, `reminderWindow`, `withdrawalAmount`, `canWithdraw`, `buildSecci`, `canonicalJson`, `sha256Hex`, `localDate`, `addDays`, `addMonths`, `daysBetween`, formatari ro-RO. `ENGINE_VERSION = 'engine-v1'`.
+Reguli decise (DECIZII sectiunea 5): DAE cu 12 luni egale; rata rotunjita la ban, ultima ajustata; prima rata la o luna de la semnare; alte rate = max(declarat, Birou); praguri 40% / 0 / 500 lei / 2 facturi > 30 zile; retragere 14 zile, suma = credit + dobanda zilnica (rata/365), returnare 30 zile; reminder zilele 1–7 daca semnat la < 24h de la SECCI.
+Valori Ana (PH-2, 24 luni): 106,52 lei/luna, ultima 106,46, total 2.556,42, cost 357,42, DAE 15,96%.
+
+### 3.3 API partea 1 (`supabase/functions/api/`)
+- `index.ts`: Hono, `basePath('/api')`, CORS din secretul `ALLOWED_ORIGINS` (implicit `http://localhost:5173,http://127.0.0.1:5173`), `/health` fara auth, apoi `requireUser` pe tot, `onError` → `{ error: { code, message, fields? } }`, erorile 500 logheaza doar un id (fara date personale).
+- `lib/auth.ts`: `requireUser` – tokenul din `Authorization: Bearer`, respinge `sb_...`, verifica cu `authClient.auth.getClaims(token)`; pune in context `userId`, `isOperator` (doar `app_metadata.role`), `db` (client cu tokenul userului → RLS). `requireOperator` pentru back-office.
+- `lib/supabase.ts`: cheile din `SUPABASE_PUBLISHABLE_KEYS` / `SUPABASE_SECRET_KEYS` (JSON, cheia `default`); `admin` = cheia secret, DOAR pentru scrieri dupa verificare.
+- `lib/data.ts`: `myCustomer` (403 pentru operator pe rutele de client), `visibleApplication` (citeste prin RLS → 404 daca nu e a lui), `catalog`.
+- `lib/ledger.ts`: `appendLedger(appId, events[])` – un singur insert, in ordine.
+- `lib/http.ts`: `ApiError`, `bad`, `forbidden`, `notFound`, `conflict`, `readJson`, `onlyKeys`, `isUuid`.
+- `routes/customer.ts`: rutele 1–6 (`/me`, `/catalog`, `/quotes`, `/applications`, `/applications/:id/consents`, `/applications/:id/assessment`). `POST /applications` cere `shown.ad_warning = true` si, pentru postpaid, `shown.personalised_label = true`. La `manual_review` motorul creeaza automat un rand in `human_reviews` (requested_by `engine`).
+- `deno.json`: `hono@4.13.19`, `@supabase/supabase-js@2.119.2` (import map; `hono/cors`, `hono/factory` mapate explicit).
+- Contractul cu schimbarile v0.1 e in DECIZII, sectiunea 6. Mesajul cu schimbarile i-a fost trimis lui David.
+
+---
+
+## 4. Cum lucram tehnic (capcane deja descoperite – nu le repeta)
+
+### 4.1 Retea
+- **Nici sandbox-ul cloud, nici VM-ul `device_bash` nu ajung la `*.supabase.co`.** Testele pe API-ul publicat le ruleaza Bogdan pe laptop: `node supabase/tests/api_smoke.mjs`. Logurile functiei le citesti cu `query_logs` (Supabase MCP).
+- Supabase MCP merge: `execute_sql`, `apply_migration`, `get_advisors`, `list_*`, `search_docs`, `query_logs`.
+
+### 4.2 SQL mare si deploy
+- **Nu retranscrie fisiere SQL mari prin `execute_sql`/`apply_migration`** (seed-ul are 270 KB). Bogdan le ruleaza in Supabase → SQL Editor (Ctrl+A din fisier, Run). Migratiile mici le aplici tu cu `apply_migration`, dupa aprobare, apoi compari MD5-ul din `supabase_migrations.schema_migrations.statements` cu fisierul si redenumesti fisierul local cu versiunea data de server.
+- **Deploy-ul API-ului il face Bogdan cu CLI** (publica exact ce e in git, include `_shared/` singur):
+  `npx supabase@latest functions deploy api --project-ref ezynswlvqqrzahpblkxu --use-api --no-verify-jwt`
+  (CLI 3.2 avertizeaza ca `--project-ref` e depreciat in favoarea `--remote=<ref>` – merge oricum). Bogdan e deja logat in CLI. Nu face deploy prin MCP (ar trebui retranscrise toate fisierele).
+- `supabase/config.toml` are `[functions.api] verify_jwt = false`.
+
+### 4.3 Folderul lui Bogdan si git
+- Scrii fisierele asa: le copiezi in `/mnt/user-data/outputs/comb/<cale>` si apoi `device_commit_files` cu `D:\HACKATHON\comb\<cale cu \>`. Inainte sa suprascrii un fisier existent, verifici ca Bogdan nu l-a modificat (compara cu versiunea din `main`).
+- **NU rula comenzi git care scriu in `D:\HACKATHON\comb` prin `device_bash`** (fetch, pull, commit, checkout, status cu refresh): stergerea e blocata acolo, git lasa fisiere `.lock` si blocheaza git-ul lui Bogdan. Un `git fetch` a lasat deja `.git/objects/maintenance.lock` (mutat in `.git/stale-maintenance-lock-claude`). Citire cu `git log`/`git diff` e ok.
+- In VM, git arata aproape toate fisierele ca modificate din cauza CRLF (Windows, autocrlf). E normal. Foloseste `git diff --ignore-cr-at-eol`.
+- Clona ta din `/home/claude/comb` e doar pentru lucru si teste; adevarul e GitHub `main` + folderul lui Bogdan.
+
+### 4.4 Teste locale
+- **Motor:** `node --test supabase/functions/_shared/engine/engine.test.ts` (Node 22 cu type stripping: fara `enum`, fara parameter properties in constructori) si `deno test`.
+- **Deno:** nu e instalat implicit; `cd /tmp/denotest && npm i deno` → `/tmp/denotest/node_modules/.bin/deno`. Pentru API: `cd supabase/functions/api && deno check --config deno.json index.ts`. Nu pune `deno.lock` in repo (lockfile-ul Deno 2.9 poate sa nu fie acceptat de runtime-ul Edge).
+- **SQL:** PGlite (`npm i @electric-sql/pglite`) + stub-urile din `supabase/tests/schema.test.mjs` (roluri anon/authenticated/service_role, `auth.users`, `auth.uid()`, `auth.jwt()`). Ruleaza migrarea NOUA peste cea existenta inainte de aplicare. Atentie: functiile SQL `language sql` se valideaza la creare → tabelele trebuie sa existe inainte.
+- Dupa orice DDL: `get_advisors` security + performance. Normale acum: INFO `otp_challenges` fara politici (intentionat), WARN „leaked password protection” (setare Auth, ignorata pentru demo), INFO „unused index”.
+
+### 4.5 Conventii de cod
+- Citiri prin `c.get('db')` (RLS). Scrieri prin `admin` DOAR dupa `visibleApplication`/`myCustomer` (adica dupa ce RLS a confirmat proprietarul).
+- Fiecare pas al clientului scrie in jurnal prin `appendLedger`. Payload fara date personale in clar (coduri, id-uri, sume ale ofertei, hash-uri; inputurile evaluarii doar ca `inputs_sha256`).
+- Body-uri validate cu `onlyKeys` (lista alba) + tipuri; erori cu coduri stabile (David le foloseste).
+- Bani `numeric(12,2)` in DB, `Number(...)` la citire; calcule in motor.
+- Datele in ora Romaniei (`localDate`), format `YYYY-MM-DD`.
+
+---
+
+## 5. Ce urmeaza (exact)
+
+### 5.1 API partea 2 – rutele P0 ramase (effort: extra)
+Specificatia de raspuns e in DECIZII sectiunea 6 (exemplele). Implementare propusa (de confirmat cu Bogdan acolo unde scrie „decizie”):
+- **7. `POST /applications/:id/human-review`** `{ message? }` (max 1000 caractere): permis pentru decizie `approved`/`rejected`/`manual_review` daca nu exista deja o revizuire `pending`; insert `human_reviews` (`requested_by: 'customer'`), jurnal `human_review_requested`. Raspuns `{ status: 'manual_review', eta_text: 'Un coleg revine in 24 de ore.' }`. **Decizie:** se schimba `applications.status` in `manual_review` sau ramane cum e (in seed, cererile respinse cu revizuire ceruta au ramas `rejected`)?
+- **8. `GET /applications/:id/secci`**: doar pentru `approved`. Recalculeaza oferta cu `buildQuote(..., localDate(now))` si verifica ca cifrele cheie = snapshot-ul din `applications`; `buildSecci(quote, product, numeOperator)`; insert `secci_documents` (unic pe cerere + versiune; daca exista, il returnezi pe cel salvat si NU dublezi evenimentul); jurnal `secci_shown { secci_version, content_sha256 }`. Numele operatorului e provizoriu („Operatorul demo”) pana alege David.
+- **9. `POST /applications/:id/secci/viewed`** (P1) `{ time_on_screen_ms, details_opened }` → update `secci_documents`, jurnal `secci_viewed`. Optional „Trimite-mi pe email” → `notifications` (`secci_email`) + `secci_emailed`.
+- **10. `POST /applications/:id/otp`**: doar daca SECCI a fost afisat si statusul e `approved`; maximum 3 coduri / 10 minute; cod de 6 cifre din `crypto.getRandomValues`; salvezi doar `sha256(appId|cod|OTP_PEPPER)`, expira in 5 minute; jurnal `otp_sent { expires_in_s: 300 }`; raspuns `{ otp_demo_code, expires_in_s }`. **Decizie:** secretul `OTP_PEPPER` (Edge Function secret) – il creezi tu cu `create_edge_function_secret` sau il seteaza Bogdan din dashboard.
+- **11. `POST /applications/:id/sign`** `{ otp }`: ultimul cod neconsumat si neexpirat; la cod gresit cresti `attempts` (max 5); la succes `consumed_at`, creezi `agreements` (`signed_at`, `info_received_at = secci.first_shown_at`, `first_installment_due = schedule[0]`, `withdrawal_deadline = withdrawalDeadline(azi)`, reminder cu `reminderWindow`), cererea → `signed`, jurnal `agreement_signed`. Raspuns ca in contract.
+- **12. `GET /agreements/:id`**: „azi” = data reala + `demo_offset_days`; `can_withdraw`; daca azi e in fereastra reminderului si nu s-a trimis → creezi notificarea + `withdrawal_reminder_sent` (lazy, fara cron); `reminders[]`.
+- **13. `POST /agreements/:id/withdraw`**: doar daca `can_withdraw`; `withdrawalAmount(principal, rata, dataSemnarii, azi)`; update agreement; jurnal `withdrawn`. Raspuns ca in contract (+ `interest_lei`, `days_used`).
+- **14. `POST /demo/time-travel`** (P1) `{ agreement_id, days }` → `demo_offset_days` (0–60), doar pe contractul userului.
+- **15. `GET /backoffice/ledger`** (operator): `?application_id=` → intrarile + `ledger_verify` (prin `admin.rpc`); fara parametru → lista ultimelor cereri cu starea jurnalului.
+- **16. `GET/POST /backoffice/reviews`** (operator): coada `pending`; `POST { review_id, status: approved|rejected, note }` → update `human_reviews` (`operator_user_id`, `resolved_at`), statusul cererii, jurnal `human_review_resolved` (actor `operator`).
+- Dupa rute: extinzi `api_smoke.mjs` (SECCI → OTP → semnare → contract → „sari la ziua 3” → retragere; operator: coada + jurnal verificat; Ana nu are acces la back-office → 403). Bogdan face deploy si ruleaza testul.
+
+### 5.2 Dupa API (plan pe ore in DECIZII sectiunea 8)
+- Sincronizarea 1 cu David la 13:00 (contract confirmat). Poarta la 19:00 (flux real cap-coada; daca nu, taiem ZERO4 si scena optionala).
+- Back-office (desktop): tabelul jurnalului (ora, eveniment, articol CCD2, hash, insigna „Jurnal verificat ✓”) + coada de revizuire (Aproba/Respinge + nota). Locul in `web/` – de confirmat.
+- Deploy web pe Vercel (repo-ul e al lui David) + secretul `ALLOWED_ORIGINS` cu domeniul Vercel + QR pentru juriu.
+
+### 5.3 Intrebari deschise (pune-le lui Bogdan, nu decide singur)
+1. `human-review` pe o cerere respinsa/aprobata: se schimba statusul cererii?
+2. `OTP_PEPPER`: cine il seteaza si cum.
+3. Back-office: in `web/src/backoffice/` (scris de noi) – confirmat de David?
+4. Vercel: cine importa repo-ul (contul lui David) si cand.
+5. Retragere: ce se intampla cu telefonul (intrebare pentru mentorul Neofin; pana atunci afisam doar suma de returnat).
+6. Numele operatorului si al modelelor (David) – le schimbam in `devices`/SECCI cand le avem (update de date = cu aprobare).
+
+---
+
+## 6. Comenzi utile
+
+**Git (Bogdan, PowerShell, din `D:\HACKATHON\comb`):**
+```
+git checkout main
+git pull
+git checkout -b feat/backend-<ce>
+git add <foldere>
+git commit -m "feat: ..."
+git push -u origin feat/backend-<ce>
+```
+Apoi PR pe GitHub → Merge → `git checkout main` + `git pull`. Atentie: daca mai face commit pe un branch DUPA merge, commit-ul nou nu ajunge in `main` fara un PR nou.
+
+**Teste:**
+```
+node --test supabase/functions/_shared/engine/engine.test.ts
+cd supabase/tests && npm install && npm run test:schema && npm run test:seed
+node supabase/tests/api_smoke.mjs        # pe API-ul publicat; creeaza cereri reale (jurnalul nu se sterge)
+```
+
+**Deploy API:** `npx supabase@latest functions deploy api --project-ref ezynswlvqqrzahpblkxu --use-api --no-verify-jwt`
