@@ -173,5 +173,29 @@ if (!OP_PASS) {
   ok('jurnalul lui Mihai -> valid, are human_review_resolved', lgM.json?.valid === true && lgM.json?.entries?.some((e) => e.event === 'human_review_resolved'));
 }
 
+// ---------------- ZERO4: casti in 4 rate fara dobanda (credit 0% de la un creditor tert -> tot sub CCD2) ----------------
+console.log('Ana, ZERO4 (casti AC-1):');
+const qz = await call(ana, 'POST', '/quotes', { sku: 'AC-1', product_id: 'ZERO4', term_months: 4 });
+ok('/quotes AC-1 ZERO4 -> 4 x 99,75, total 399, cost 0, DAE 0', qz.json?.installment_lei === 99.75 && qz.json?.installments === 4 &&
+  qz.json?.total_payable_lei === 399 && qz.json?.total_cost_lei === 0 && qz.json?.apr_pct === 0, JSON.stringify(qz.json));
+ok('ZERO4 pe 12 luni -> 400 TERM_NOT_ALLOWED', (await call(ana, 'POST', '/quotes', { sku: 'AC-1', product_id: 'ZERO4', term_months: 12 })).json?.error?.code === 'TERM_NOT_ALLOWED');
+ok('ZERO4 pe telefon -> 400 PRODUCT_NOT_APPLICABLE', (await call(ana, 'POST', '/quotes', { sku: 'PH-2', product_id: 'ZERO4', term_months: 4 })).json?.error?.code === 'PRODUCT_NOT_APPLICABLE');
+const az = await call(ana, 'POST', '/applications', { sku: 'AC-1', product_id: 'ZERO4', term_months: 4, shown: { ad_warning: true, personalised_label: true } });
+const idZ = az.json?.application_id;
+ok('/applications ZERO4 -> 201 draft', az.status === 201 && !!idZ, JSON.stringify(az.json));
+await call(ana, 'POST', `/applications/${idZ}/consents`, { billing_history: true, privacy_notice_read: true });
+const asZ = await call(ana, 'POST', `/applications/${idZ}/assessment`, { net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_lei: 300 });
+ok('evaluare ZERO4 -> approved', asZ.json?.decision === 'approved', JSON.stringify(asZ.json?.decision));
+const scZ = await call(ana, 'GET', `/applications/${idZ}/secci`);
+ok('SECCI ZERO4 -> DAE 0, cost 0, 4 rate, 14 zile', scZ.json?.key?.apr_pct === 0 && scZ.json?.key?.total_cost_lei === 0 &&
+  scZ.json?.schedule?.length === 4 && scZ.json?.key?.withdrawal_days === 14, JSON.stringify(scZ.json?.key));
+const otpZ = await call(ana, 'POST', `/applications/${idZ}/otp`);
+const sgZ = await call(ana, 'POST', `/applications/${idZ}/sign`, { otp: otpZ.json?.otp_demo_code });
+ok('semnare ZERO4 -> contract, termen azi+14', !!sgZ.json?.agreement_id && sgZ.json?.withdrawal_deadline === plusDays(today, 14), JSON.stringify(sgZ.json));
+await call(ana, 'POST', '/demo/time-travel', { agreement_id: sgZ.json?.agreement_id, days: 3 });
+const wdZ = await call(ana, 'POST', `/agreements/${sgZ.json?.agreement_id}/withdraw`);
+ok('retragere ZERO4 ziua 3 -> 399 lei, dobanda 0, text fara dobanda', wdZ.json?.amount_to_return_lei === 399 && wdZ.json?.interest_lei === 0 &&
+  wdZ.json?.text === 'Returnezi suma primita, fara dobanda, in maximum 30 de zile.', JSON.stringify(wdZ.json));
+
 console.log(`\nRezultat: ${pass} OK, ${fail} FAIL`);
 console.log(`Cererea Anei: ${id} | contract: ${agrId}`);
