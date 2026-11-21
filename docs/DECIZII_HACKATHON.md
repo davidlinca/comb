@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 03:35 (adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 04:00 (back-office scris si testat; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -498,7 +498,7 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 
 ---
 
-## 15. Status (21.11, 03:35)
+## 15. Status (21.11, 04:00)
 
 | Ce | Stare |
 |---|---|
@@ -508,7 +508,7 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 | Date demo | pe server: 63 clienti, 983 facturi, 47 cereri, 370 intrari in jurnal, toate jurnalele valide; conturile legate, operatorul are rol |
 | API partea 1 (rutele 1–6) | publicat, test pe server 15/15 |
 | API partea 2 (rutele 6b, 7–16) | publicat (versiunea 3, `OTP_PEPPER` setat); test pe server 62/63 – singurul FAIL era in test (ordinea cheilor din jsonb), reparat; local: 12 teste noi + 25 motor |
-| Back-office (`web/src/backoffice/`) | urmeaza |
+| Back-office (`web/src/backoffice/`) | scris, decuplat de restul aplicatiei; testat pe API-ul real cu operatorul, prin pagina de proba `tools/backoffice-dev/`. Se leaga cu o singura ruta `/backoffice` cand urca David `web/` (vezi `web/src/backoffice/README.md`) |
 | Deploy Vercel + QR | urmeaza (il importa David cand merge login-ul pe API) |
 
 Detaliile tehnice, regulile de lucru si pasii urmatori exacti sunt in `PREDARE_CLAUDE.md` (in proiect si in `docs/`).
