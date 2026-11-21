@@ -84,7 +84,7 @@ r.get('/reviews', async (c) => {
     applications!inner(id, status, sku, product_id, term_months, principal_lei, installment_lei, created_at,
       customers(code, display_name, segment, tenure_months),
       assessments(decision, reasons, dti_pct, residual_lei, late_bills_12m, net_income_lei, monthly_expenses_lei,
-        other_installments_declared_lei, other_installments_bureau_lei, other_installments_used_lei, billing_history_used,
+        other_installments_declared_lei, other_installments_bureau_lei, other_installments_used_lei, other_installments_bank_lei, billing_history_used,
         bank_data_used, income_verified_lei, income_used_lei, expenses_verified_lei, expenses_used_lei))
   `).is('applications.archived_at', null); // fara cererile arhivate (curatare demo)
   q = which === 'pending' ? q.eq('status', 'pending').order('requested_at') : q.order('requested_at', { ascending: false }).limit(50);
@@ -110,7 +110,8 @@ r.get('/reviews', async (c) => {
           late_bills_12m: as.late_bills_12m, net_income_lei: num(as.net_income_lei), monthly_expenses_lei: num(as.monthly_expenses_lei),
           other_installments_declared_lei: num(as.other_installments_declared_lei),
           other_installments_bureau_lei: num(as.other_installments_bureau_lei),
-          other_installments_used_lei: num(as.other_installments_used_lei), billing_history_used: as.billing_history_used,
+          other_installments_used_lei: num(as.other_installments_used_lei), other_installments_bank_lei: num(as.other_installments_bank_lei),
+          billing_history_used: as.billing_history_used,
           bank_data_used: as.bank_data_used ?? false, income_verified_lei: num(as.income_verified_lei),
           income_used_lei: num(as.income_used_lei) ?? num(as.net_income_lei),
           expenses_verified_lei: num(as.expenses_verified_lei),

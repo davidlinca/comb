@@ -62,6 +62,8 @@ const appM = await call(mihai, 'POST', '/applications', { sku: 'PH-3', product_i
 await call(mihai, 'POST', `/applications/${appM.json?.application_id}/consents`, { billing_history: true, bank_data: true, privacy_notice_read: true });
 const asM = await call(mihai, 'POST', `/applications/${appM.json?.application_id}/assessment`, { net_income_lei: 3900, monthly_expenses_lei: 1800, other_installments_lei: 650 });
 ok('/assessment Mihai -> manual_review (BILLS_LATE)', asM.json?.decision === 'manual_review' && asM.json?.reasons?.[0]?.code === 'BILLS_LATE', JSON.stringify(asM.json));
+ok('Mihai: banca vede 750 lei rate (BNPL +100) -> folosit 750, motivul BANK_INSTALLMENTS_HIGHER', asM.json?.reasons?.[1]?.code === 'BANK_INSTALLMENTS_HIGHER' &&
+  asM.json?.verification?.other_installments?.bank_lei === 750 && asM.json?.verification?.other_installments?.used_lei === 750, JSON.stringify(asM.json?.verification));
 
 // ---------------- Partea 2 ----------------
 const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest' }).format(new Date());
@@ -214,6 +216,10 @@ await call(ana, 'POST', `/applications/${aN.json?.application_id}/consents`, { b
 const asN = await call(ana, 'POST', `/applications/${aN.json?.application_id}/assessment`, { net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_lei: 300 });
 ok('fara acord bancar -> manual_review INCOME_NOT_VERIFIED (nu aprobare automata)', asN.json?.decision === 'manual_review' &&
   asN.json?.reasons?.[0]?.code === 'INCOME_NOT_VERIFIED' && asN.json?.verification?.bank_data_used === false && asN.json?.verification?.income?.verified_lei === null, JSON.stringify(asN.json));
+ok('fara acord bancar -> ratele din banca nu se folosesc (bank_lei null)', asN.json?.verification?.other_installments?.bank_lei === null &&
+  asN.json?.verification?.other_installments?.used_lei === 300, JSON.stringify(asN.json?.verification?.other_installments));
+const stM2 = await call(mihai, 'GET', `/applications/${appM.json?.application_id}`);
+ok('GET /applications/:id Mihai -> bank_lei 750 salvat', stM2.json?.decision?.verification?.other_installments?.bank_lei === 750, JSON.stringify(stM2.json?.decision?.verification?.other_installments));
 
 console.log(`\nRezultat: ${pass} OK, ${fail} FAIL`);
 console.log(`Cererea Anei: ${id} | contract: ${agrId}`);

@@ -125,6 +125,7 @@ function Verified({ v }: { v: Verification }) {
         <div className="flex justify-between gap-3 text-[15px]"><span>{label}</span><span className="font-semibold">{leiInt(l.used_lei)}</span></div>
         <p className="text-[13px] text-muted">
           declarat {leiInt(l.declared_lei)} · {checked == null ? <span className="text-brand">neverificat, un coleg verifică</span> : <>verificat {leiInt(checked)} ({src})</>}
+          {kind === 'bureau' && l.bank_lei != null && <> · în cont {leiInt(l.bank_lei)} ({v.source ?? 'Open Banking (simulat)'})</>}
         </p>
       </div>
     );

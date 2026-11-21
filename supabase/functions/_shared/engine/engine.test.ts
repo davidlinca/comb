@@ -86,10 +86,12 @@ test('Date: 31 ian. + 1 luna = 28/29 feb.', () => {
 
 // ---------- Accesibilitatea (cele 3 persone) ----------
 
-// Implicit: acord pentru datele bancare, iar banca confirma exact ce a declarat clientul (engine-v2)
+// Implicit: acord pentru datele bancare, iar banca confirma exact ce a declarat clientul (engine-v2);
+// ratele vazute in cont = cele de la Birou (engine-v3)
 type AIn = Parameters<typeof assessAffordability>[0];
-const A = (i: Omit<AIn, 'bank_status' | 'bank_income_lei' | 'bank_expenses_lei'> & Partial<AIn>) =>
-  assessAffordability({ bank_status: 'used', bank_income_lei: i.net_income_lei, bank_expenses_lei: i.monthly_expenses_lei, ...i });
+const A = (i: Omit<AIn, 'bank_status' | 'bank_income_lei' | 'bank_expenses_lei' | 'bank_installments_lei'> & Partial<AIn>) =>
+  assessAffordability({ bank_status: 'used', bank_income_lei: i.net_income_lei, bank_expenses_lei: i.monthly_expenses_lei,
+    bank_installments_lei: i.other_installments_bureau_lei, ...i });
 
 
 const base = { other_installments_bureau_lei: 0, late_bills_12m: 0, history_status: 'used' as const };
@@ -105,7 +107,7 @@ test('Ana -> aprobat, 4 motive (venit verificat), fara consiliere', () => {
     bank_data_used: true, source: 'Open Banking (simulat)',
     income: { declared_lei: 5200, verified_lei: 5200, used_lei: 5200 },
     expenses: { declared_lei: 2100, verified_lei: 2100, used_lei: 2100 },
-    other_installments: { declared_lei: 300, bureau_lei: 300, used_lei: 300 },
+    other_installments: { declared_lei: 300, bureau_lei: 300, bank_lei: 300, used_lei: 300 },
   });
   assert.equal(r.debt_advice, null);
 });
@@ -290,4 +292,45 @@ test('Maximum 4 motive afisate', () => {
   const r = A({ ...ana, net_income_lei: 9000, monthly_expenses_lei: 1000, other_installments_declared_lei: 0,
     bank_income_lei: 5200, bank_expenses_lei: 2100 });
   assert.ok(r.reasons.length <= 4);
+});
+
+// ---------- Alte rate vazute in contul bancar (Open Banking, simulat) – engine-v3 ----------
+
+const mihai = { net_income_lei: 3900, monthly_expenses_lei: 1800, other_installments_declared_lei: 650,
+  other_installments_bureau_lei: 650, new_installment_lei: 169.49, late_bills_12m: 2, history_status: 'used' as const };
+
+test('Mihai: banca arata 750 lei rate (BNPL +100) -> se folosesc 750, ramane in revizuire, motivul explica', () => {
+  const r = A({ ...mihai, bank_installments_lei: 750 });
+  assert.equal(r.decision, 'manual_review');
+  assert.equal(r.metrics.other_installments_used_lei, 750);
+  assert.equal(r.metrics.residual_lei, 1180.51);
+  assert.deepEqual(r.reasons.map((x) => x.code), ['BILLS_LATE', 'BANK_INSTALLMENTS_HIGHER', 'INCOME_VERIFIED', 'DTI_OK']);
+  assert.equal(r.reasons[1].text, 'Am folosit ratele pe care le platesti lunar, vazute in contul tau bancar (750 lei pe luna), mai mari decat cele declarate (650 lei) si decat cele de la Biroul de Credit (650 lei).');
+  assert.equal(r.reasons[3].text, 'Ratele tale ar fi 24% din venit, sub limita de 40%.');
+  assert.deepEqual(r.verification.other_installments, { declared_lei: 650, bureau_lei: 650, bank_lei: 750, used_lei: 750 });
+});
+
+test('Ratele din banca mai mici decat Biroul -> se foloseste Biroul (BUREAU_HIGHER), nu banca', () => {
+  const r = A({ ...ana, other_installments_declared_lei: 100, other_installments_bureau_lei: 300, bank_installments_lei: 200 });
+  assert.equal(r.metrics.other_installments_used_lei, 300);
+  assert.ok(r.reasons.some((x) => x.code === 'BUREAU_HIGHER'));
+  assert.ok(!r.reasons.some((x) => x.code === 'BANK_INSTALLMENTS_HIGHER'));
+});
+
+test('Fara acord bancar -> ratele din banca NU se folosesc (bank_lei null)', () => {
+  const r = A({ ...ana, bank_status: 'no_consent', bank_income_lei: null, bank_expenses_lei: null, bank_installments_lei: 900 });
+  assert.equal(r.metrics.other_installments_used_lei, 300);
+  assert.equal(r.verification.other_installments.bank_lei, null);
+});
+
+test('Ratele din banca pot duce la respingere (DTI peste 40%)', () => {
+  const r = A({ ...ana, bank_installments_lei: 2000 });
+  assert.equal(r.decision, 'rejected');
+  assert.equal(r.reasons[0].code, 'DTI_HIGH');
+  assert.equal(r.reasons[1].code, 'BANK_INSTALLMENTS_HIGHER');
+  assert.ok(r.debt_advice);
+});
+
+test('engine-v3', () => {
+  assert.equal(A({ ...ana }).engine_version, 'engine-v3');
 });
