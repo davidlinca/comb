@@ -1,5 +1,6 @@
 // Magazinul din aplicația Telvia. Rămâne afișat (inert) sub sheet-urile fluxului de rate.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { api } from '../lib/api';
 import { Outlet, useLoaderData, useMatches, useNavigate, useNavigation, useRouteLoaderData } from 'react-router-dom';
 import type { Catalog, CurrentApplication, Device } from '../lib/api';
 import { lei } from '../lib/format';
@@ -37,6 +38,26 @@ export default function Shop() {
     void live.current.then((a) => { if (alive) setCurrent(a); });
     return () => { alive = false; };
   }, [live]);
+  // Cât stai în magazin, cardul se actualizează singur: când revii în fereastră și, cât cererea e în analiză,
+  // la fiecare 10 secunde (decizia specialistului din back-office apare fără reîncărcare).
+  const waiting = current?.next_step === 'wait_review';
+  useEffect(() => {
+    if (sheetOpen) return;
+    let alive = true;
+    const reload = () => {
+      if (document.visibilityState !== 'visible') return;
+      api.current().then((r) => { if (alive) setCurrent(r.application); }, () => {});
+    };
+    document.addEventListener('visibilitychange', reload);
+    window.addEventListener('focus', reload);
+    const t = waiting ? window.setInterval(reload, 10000) : 0;
+    return () => {
+      alive = false;
+      document.removeEventListener('visibilitychange', reload);
+      window.removeEventListener('focus', reload);
+      if (t) window.clearInterval(t);
+    };
+  }, [sheetOpen, waiting]);
   // cardul apare / dispare cu înălțime animată (produsele alunecă, nu sar); păstrăm ultimul conținut cât se strânge
   const [shown, setShown] = useState(current);
   if (current && current !== shown) setShown(current);
@@ -104,7 +125,7 @@ export default function Shop() {
             )}
 
             <div ref={slot} className="reveal -mt-5" data-open={hasCard} inert={!hasCard}>
-              <div>{shown && <div className="pt-5"><CurrentCard a={shown} onOpen={open} pendingPath={navigation.location?.pathname} /></div>}</div>
+              <div>{shown && <div className="pt-5"><CurrentCard key={`${shown.application_id}-${shown.next_step}`} a={shown} onOpen={open} pendingPath={navigation.location?.pathname} /></div>}</div>
             </div>
 
             <Section title="Telefoane" items={phones} catalog={catalog} pendingSku={pendingSku}

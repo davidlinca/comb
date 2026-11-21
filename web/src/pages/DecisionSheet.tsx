@@ -35,7 +35,7 @@ export default function DecisionSheet() {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const action = useRef<'recheck' | 'human' | null>(null);
+  const action = useRef<'recheck' | 'human' | 'decided' | null>(null);
 
   const view: View = app.next_step === 'wait_review' ? 'review' : app.next_step === 'rejected' ? 'rejected' : 'approved';
   const d = app.decision;
@@ -51,8 +51,26 @@ export default function DecisionSheet() {
   useEffect(() => {
     if (action.current === 'recheck' && view === 'review') toast('Încă în analiză. Te anunțăm prin SMS.');
     if (action.current === 'human' && view === 'review') toast('Cererea a ajuns la un specialist.');
+    if (action.current === 'decided' && view !== 'review') toast('Un specialist a analizat cererea ta.');
     action.current = null;
   }, [app, view, toast]);
+
+  // În analiză: verificăm singuri, la câteva secunde, dacă specialistul a decis (ca și coada din back-office),
+  // ca rezultatul să apară fără să apese clientul. Doar cât ecranul e vizibil.
+  useEffect(() => {
+    if (view !== 'review') return;
+    let checking = false;
+    const t = window.setInterval(async () => {
+      if (checking || document.visibilityState !== 'visible') return;
+      checking = true;
+      try {
+        const a = await api.application(id);
+        if (a.next_step !== 'wait_review') { action.current = 'decided'; nav(pathname, { replace: true, viewTransition: true }); }
+      } catch { /* reîncercăm la pasul următor */ }
+      checking = false;
+    }, 8000);
+    return () => window.clearInterval(t);
+  }, [view, id, nav, pathname]);
 
   async function askHuman() {
     setBusy(true); setError(null);
