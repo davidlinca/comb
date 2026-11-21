@@ -80,6 +80,8 @@ export function ArrowLink({ children, onClick, disabled }: { children: ReactNode
 
 export const STEPS = ['Perioada', 'Buget', 'Rezultat', 'Oferta'] as const;
 let lastProgress = 0; // de unde pornește bara la ecranul următor (animație continuă între pași)
+/** Un flux nou (sheet deschis din magazin): bara nu mai pornește de unde a rămas cererea anterioară. */
+export function resetProgress() { lastProgress = 0; }
 
 /**
  * Antetul pașilor: eticheta pasului, 4 segmente (cele trecute pline, cel curent pornit) și X.
@@ -134,7 +136,7 @@ export function SheetBody({ children, className }: { children: ReactNode; classN
 /** Butoanele de jos: rămân pe loc când sheet-ul își schimbă înălțimea (view-transition separat). */
 export function SheetFoot({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx('shrink-0 px-5 pb-5 pt-4', className)} style={{ viewTransitionName: 'sheet-foot' }}>
+    <div data-sheet-foot className={cx('shrink-0 px-5 pb-5 pt-4', className)} style={{ viewTransitionName: 'sheet-foot' }}>
       {children}
     </div>
   );

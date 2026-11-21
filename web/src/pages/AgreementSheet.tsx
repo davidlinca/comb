@@ -61,8 +61,8 @@ export default function AgreementSheet() {
     setBusy('withdraw'); setError(null);
     try {
       const r = await api2.withdraw(aid);
+      // o singură tranziție: ecranul „retras” vine din răspuns, fără reîncărcare (care ar porni a doua)
       withTransition(() => { setResult(r); setConfirming(false); });
-      refresh();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Retragerea nu a reușit.');
     }

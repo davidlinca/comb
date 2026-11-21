@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLoaderData, useNavigate, useOutletContext } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { groupDigits, parseLei } from '../lib/format';
-import { withTransition } from '../lib/motion';
+import { useStepBack, withTransition } from '../lib/motion';
 import type { budgetLoader, LoaderData } from '../loaders';
 import type { SheetCtx } from '../components/SheetShell';
 import { CheckDot, IconLoading, IconTick } from '../components/Icons';
@@ -20,6 +20,7 @@ export default function BudgetSheet() {
   const id = app.application_id;
   const { close } = useOutletContext<SheetCtx>();
   const nav = useNavigate();
+  const back = useStepBack(app.offer ? `/shop/${app.offer.sku}` : '/shop');
   const [income, setIncome] = useState('');
   const [expenses, setExpenses] = useState('');
   const [other, setOther] = useState('');
@@ -143,7 +144,7 @@ export default function BudgetSheet() {
         </SheetBody>
         <SheetFoot>
           <TwoButtons>
-            <Btn type="button" variant="secondary" onClick={() => nav(-1)}>Înapoi</Btn>
+            <Btn type="button" variant="secondary" onClick={back}>Înapoi</Btn>
             <Btn type="submit">Verifică</Btn>
           </TwoButtons>
         </SheetFoot>

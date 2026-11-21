@@ -1,5 +1,6 @@
 // Între ofertă și codul SMS: rezumatul, verificările și semnarea prin glisare.
-import { useLoaderData, useNavigate, useNavigation, useOutletContext } from 'react-router-dom';
+import { useLoaderData, useLocation, useNavigate, useNavigation, useOutletContext } from 'react-router-dom';
+import { useStepBack } from '../lib/motion';
 import { dayMonth, lei } from '../lib/format';
 import type { confirmLoader, LoaderData } from '../loaders';
 import type { SheetCtx } from '../components/SheetShell';
@@ -14,6 +15,8 @@ export default function ConfirmSheet() {
   const { close } = useOutletContext<SheetCtx>();
   const nav = useNavigate();
   const navigation = useNavigation();
+  const { pathname } = useLocation();
+  const back = useStepBack(`/a/${id}/oferta`);
   const firstDue = secci.schedule[0]?.due_date;
   const months = o.term_months < 20 ? `${o.term_months} luni` : `${o.term_months} de luni`;
 
@@ -54,9 +57,9 @@ export default function ConfirmSheet() {
         </Collapse>
       </SheetBody>
       <SheetFoot className="flex flex-col gap-1.5">
-        <SwipeToSign onDone={() => nav(`/a/${id}/semnare`, { viewTransition: true })}
+        <SwipeToSign onDone={() => nav(`/a/${id}/semnare`, { viewTransition: true, state: { from: pathname } })}
           caption="Urmează codul din SMS, care confirmă semnătura." />
-        <Btn variant="primary" onClick={() => nav(`/a/${id}/oferta`, { viewTransition: true })}
+        <Btn variant="primary" onClick={back}
           loading={navigation.location?.pathname === `/a/${id}/oferta`}>
           Înapoi la ofertă
         </Btn>
@@ -68,7 +71,7 @@ export default function ConfirmSheet() {
 /** Ilustrația contractului: foaia plutește, inelul punctat se rotește încet, bifa așteaptă semnătura. */
 function ContractArt() {
   return (
-    <div aria-hidden className="relative h-[170px] shrink-0 overflow-hidden rounded-[22px] border border-stroke bg-card">
+    <div aria-hidden className="relative h-[170px] shrink-0 overflow-hidden rounded-[22px] border border-stroke bg-card [@media(max-height:520px)]:hidden">
       <div className="absolute left-[27%] top-[22px] flex h-[170px] w-[136px] flex-col gap-2.5 rounded-[12px] bg-[linear-gradient(180deg,#5a5a5a,#2d2d2d_85%)] p-3.5 animate-float">
         <span className="h-[6px] w-[52px] origin-left rounded-full bg-brand animate-[grow_1s_var(--ease-out-expo)_0.2s_both]" />
         <span className="h-[5px] rounded-full bg-paper/85" />
