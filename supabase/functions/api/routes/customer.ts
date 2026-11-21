@@ -1,13 +1,15 @@
-// Rutele clientului, partea 1: /me, /catalog, /quotes, /applications, /consents, /assessment.
+// Rutele clientului, partea 1: /me, /catalog, /quotes, /applications, /consents, /assessment
+// + GET /applications/:id (starea cererii, adaugata in partea 2).
 
 import { Hono } from 'hono';
 import type { Env } from '../lib/auth.ts';
 import { bad, conflict, onlyKeys, readJson } from '../lib/http.ts';
-import { catalog, myCustomer, visibleApplication } from '../lib/data.ts';
+import { catalog, myApplication, myCustomer } from '../lib/data.ts';
 import { admin } from '../lib/supabase.ts';
 import { appendLedger } from '../lib/ledger.ts';
+import { nextStep } from '../lib/flow.ts';
 import {
-  assessAffordability, buildQuote, canonicalJson, countLateBills12m, localDate, QuoteError, sha256Hex,
+  assessAffordability, buildQuote, canonicalJson, countLateBills12m, DEBT_ADVICE, localDate, QuoteError, sha256Hex,
   validateAssessmentInput,
 } from '../../_shared/engine/index.ts';
 
@@ -111,7 +113,7 @@ r.post('/applications', async (c) => {
 
 // 5. POST /applications/:id/consents  body: { billing_history: boolean, privacy_notice_read: true }
 r.post('/applications/:id/consents', async (c) => {
-  const app = await visibleApplication(c.get('db'), c.req.param('id'));
+  const { app } = await myApplication(c.get('db'), c.get('userId'), c.req.param('id'));
   const body = await readJson(c.req.raw);
   onlyKeys(body, ['billing_history', 'privacy_notice_read']);
   if (body.privacy_notice_read !== true) {
@@ -137,7 +139,7 @@ r.post('/applications/:id/consents', async (c) => {
 // 6. POST /applications/:id/assessment  body: DOAR { net_income_lei, monthly_expenses_lei, other_installments_lei }
 r.post('/applications/:id/assessment', async (c) => {
   const db = c.get('db');
-  const app = await visibleApplication(db, c.req.param('id'));
+  const { app } = await myApplication(db, c.get('userId'), c.req.param('id'));
   const v = validateAssessmentInput(await readJson(c.req.raw));
   if (!v.ok) throw bad(v.code, v.message, v.fields);
   if (app.status !== 'draft') throw conflict('ALREADY_ASSESSED', 'Cererea a fost deja evaluata.');
@@ -202,6 +204,46 @@ r.post('/applications/:id/assessment', async (c) => {
     decision: res.decision, automated: true, reasons: res.reasons,
     metrics: { dti_pct: res.metrics.dti_pct, residual_lei: res.metrics.residual_lei, late_bills_12m: res.metrics.late_bills_12m },
     human_review_available: true, debt_advice: res.debt_advice,
+  });
+});
+
+// 6b. GET /applications/:id  (doar citire: starea cererii dupa refresh sau dupa revizuirea umana; decizie 21.11, 03:20)
+r.get('/applications/:id', async (c) => {
+  const db = c.get('db');
+  const { app } = await myApplication(db, c.get('userId'), c.req.param('id'));
+  const [cons, asmt, rev, secci, agr] = await Promise.all([
+    db.from('consents').select('purpose, granted').eq('application_id', app.id),
+    db.from('assessments').select('decision, automated, reasons, dti_pct, residual_lei, late_bills_12m').eq('application_id', app.id).maybeSingle(),
+    db.from('human_reviews').select('status, requested_by, requested_at, resolved_at').eq('application_id', app.id)
+      .order('requested_at', { ascending: false }).limit(1).maybeSingle(),
+    db.from('secci_documents').select('id').eq('application_id', app.id).limit(1),
+    db.from('agreements').select('id, status').eq('application_id', app.id).maybeSingle(),
+  ]);
+  for (const x of [cons, asmt, rev, secci, agr]) if (x.error) throw new Error(x.error.message);
+
+  const consentsGiven = (cons.data ?? []).some((x) => x.purpose === 'privacy_notice' && x.granted);
+  const secciShown = (secci.data ?? []).length > 0;
+  const a = asmt.data;
+  return c.json({
+    application_id: app.id, status: app.status, created_at: app.created_at,
+    next_step: nextStep(app.status, { consents_given: consentsGiven, secci_shown: secciShown }),
+    offer: {
+      sku: app.sku, product_id: app.product_id, term_months: app.term_months, installment_lei: app.installment_lei,
+      installments: app.installments, total_credit_lei: app.principal_lei, total_payable_lei: app.total_payable_lei,
+      total_cost_lei: app.total_cost_lei, nominal_rate_pct: app.nominal_rate_pct, apr_pct: app.apr_pct,
+    },
+    // decizia AUTOMATA (motivele raman cele initiale); statusul curent e in `status`
+    decision: a ? {
+      decision: a.decision, automated: a.automated, reasons: a.reasons,
+      metrics: { dti_pct: Number(a.dti_pct), residual_lei: Number(a.residual_lei), late_bills_12m: a.late_bills_12m },
+    } : null,
+    debt_advice: app.status === 'rejected' ? DEBT_ADVICE : null,
+    review: rev.data ? {
+      status: rev.data.status, requested_by: rev.data.requested_by, requested_at: rev.data.requested_at, resolved_at: rev.data.resolved_at,
+    } : null,
+    secci_shown: secciShown,
+    agreement_id: agr.data?.id ?? null,
+    agreement_status: agr.data?.status ?? null,
   });
 });
 

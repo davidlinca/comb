@@ -36,6 +36,57 @@ export async function visibleApplication(db: SupabaseClient, id: string): Promis
   return row as unknown as ApplicationRow;
 }
 
+/**
+ * Pentru rutele in care CLIENTUL actioneaza (acorduri, evaluare, semnare, retragere):
+ * userul trebuie sa fie client (operatorul -> 403) si cererea sa fie a lui (altfel 404).
+ * Operatorul vede tot prin RLS, dar lucreaza doar prin /backoffice/*.
+ */
+export async function myApplication(db: SupabaseClient, userId: string, id: string) {
+  const cu = await myCustomer(db, userId);
+  const app = await visibleApplication(db, id);
+  if (app.customer_id !== cu.id) throw notFound('Cererea nu exista.');
+  return { cu, app };
+}
+
+export type SecciRow = {
+  id: string; application_id: string; secci_version: string; content: Record<string, unknown>;
+  content_sha256: string; first_shown_at: string; time_on_screen_ms: number | null;
+  details_opened: boolean | null; emailed_at: string | null;
+};
+
+/** SECCI-ul salvat pentru cerere (versiunea v1), daca a fost afisat. */
+export async function savedSecci(db: SupabaseClient, applicationId: string, version: string): Promise<SecciRow | null> {
+  const { data, error } = await db.from('secci_documents').select('*')
+    .eq('application_id', applicationId).eq('secci_version', version).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data as SecciRow | null;
+}
+
+export type AgreementRow = {
+  id: string; application_id: string; secci_document_id: string; signed_at: string; info_received_at: string;
+  first_installment_due: string; withdrawal_deadline: string; reminder_required: boolean;
+  reminder_from: string | null; reminder_to: string | null; status: 'active' | 'withdrawn';
+  withdrawn_at: string | null; amount_to_return_lei: number | null; return_by: string | null; demo_offset_days: number;
+  app: { customer_id: string; principal_lei: number; nominal_rate_pct: number };
+};
+
+/** Contractul clientului logat (operatorul -> 403, contractul altcuiva -> 404). */
+export async function myAgreement(db: SupabaseClient, userId: string, id: unknown): Promise<AgreementRow> {
+  const cu = await myCustomer(db, userId);
+  if (typeof id !== 'string' || !isUuid(id)) throw notFound('Contractul nu exista.');
+  const { data, error } = await db.from('agreements')
+    .select('*, applications!inner(customer_id, principal_lei, nominal_rate_pct)').eq('id', id).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw notFound('Contractul nu exista.');
+  const { applications: a, ...rest } = data as Record<string, unknown> & { applications: Record<string, unknown> };
+  if (a.customer_id !== cu.id) throw notFound('Contractul nu exista.');
+  return {
+    ...(rest as unknown as Omit<AgreementRow, 'app'>),
+    amount_to_return_lei: rest.amount_to_return_lei == null ? null : Number(rest.amount_to_return_lei),
+    app: { customer_id: String(a.customer_id), principal_lei: Number(a.principal_lei), nominal_rate_pct: Number(a.nominal_rate_pct) },
+  };
+}
+
 export async function catalog(db: SupabaseClient) {
   const [d, p] = await Promise.all([
     db.from('devices').select('sku, name, category, price_lei').eq('is_active', true).order('sort_order'),
