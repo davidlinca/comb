@@ -11,3 +11,7 @@ export const IconParty = ({ className = 'size-7' }: P) => (<svg viewBox="0 0 24 
 export const IconShield = ({ className = 'size-4' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" /></svg>);
 export const IconChevron = ({ className = 'size-4' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M9 5l7 7-7 7" /></svg>);
 export const IconArrow = ({ className = 'size-4' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M5 12h13M13 6l6 6-6 6" /></svg>);
+export const IconUndo = ({ className = 'size-5' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" /></svg>);
+export const IconDoc = ({ className = 'size-5' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M7 3h7l4 4v14H7z" /><path d="M10 12h5M10 16h5" /></svg>);
+export const IconMail = ({ className = 'size-5' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg>);
+export const IconBell = ({ className = 'size-5' }: P) => (<svg viewBox="0 0 24 24" strokeWidth={2} className={className} {...base}><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>);

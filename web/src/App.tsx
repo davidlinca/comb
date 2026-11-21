@@ -7,7 +7,10 @@ import Login from './pages/Login';
 import Shop from './pages/Shop';
 import BudgetSheet from './pages/BudgetSheet';
 import DecisionSheet from './pages/DecisionSheet';
-import NextSheet from './pages/NextSheet';
+import OfferSheet from './pages/OfferSheet';
+import ConfirmSheet from './pages/ConfirmSheet';
+import OtpSheet from './pages/OtpSheet';
+import AgreementSheet from './pages/AgreementSheet';
 import { Backoffice } from './backoffice';
 
 function Guard({ children, role = 'customer' }: { children: ReactNode; role?: 'customer' | 'operator' }) {
@@ -42,7 +45,10 @@ export default function App() {
       <Route path="/shop/:sku" element={phone(<Guard><Shop /></Guard>)} />
       <Route path="/a/:id/buget" element={phone(<Guard><BudgetSheet /></Guard>)} />
       <Route path="/a/:id/rezultat" element={phone(<Guard><DecisionSheet /></Guard>)} />
-      <Route path="/a/:id/oferta" element={phone(<Guard><NextSheet /></Guard>)} />
+      <Route path="/a/:id/oferta" element={phone(<Guard><OfferSheet /></Guard>)} />
+      <Route path="/a/:id/confirma" element={phone(<Guard><ConfirmSheet /></Guard>)} />
+      <Route path="/a/:id/semnare" element={phone(<Guard><OtpSheet /></Guard>)} />
+      <Route path="/c/:aid" element={phone(<Guard><AgreementSheet /></Guard>)} />
       <Route path="/backoffice" element={<Guard role="operator"><BackofficeRoute /></Guard>} />
       <Route path="*" element={<Navigate to="/shop" replace />} />
     </Routes>
