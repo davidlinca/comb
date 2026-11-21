@@ -10,7 +10,11 @@ const timeOnly = new Intl.DateTimeFormat('ro-RO', { timeZone: TZ, hour: '2-digit
 const lei2 = new Intl.NumberFormat('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 1 });
 
+const dayOnly = new Intl.DateTimeFormat('ro-RO', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
+
 export const fmtDateTime = (iso: string) => dateTime.format(new Date(iso));
+/** 'YYYY-MM-DD' -> '21 dec. 2026' */
+export const fmtDay = (d: string) => dayOnly.format(new Date(`${d}T00:00:00Z`));
 export const fmtDateShort = (iso: string) => dateShort.format(new Date(iso));
 export const fmtTime = (d: Date) => timeOnly.format(d);
 export const fmtLei = (v: number | null | undefined) => (v == null ? '–' : `${lei2.format(v)} lei`); // 1.234,56 lei

@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BackofficeApi, Review } from './api';
-import { DECISION_LABEL, fmtDateShort, fmtLei, fmtPct, fmtTime, productLabel, STATUS_LABEL, statusTone } from './format';
+import { DECISION_LABEL, fmtDateShort, fmtDay, fmtLei, fmtPct, fmtTime, productLabel, STATUS_LABEL, statusTone } from './format';
 import { ErrorNote } from './LedgerView';
 import { btnBase, btnQuiet, chip, focusRing } from './ui';
 
@@ -122,6 +122,7 @@ function ReviewCase({ review: r, api, busy, onOpenLedger, onResolved }: CaseProp
   const a = r.assessment;
   const name = r.customer?.display_name ?? 'Client necunoscut';
   const pending = r.status === 'pending';
+  const art35 = r.topic === 'forbearance' ? r.forbearance ?? null : null; // rata ratata: contractul semnat nu se schimba
 
   async function resolve(status: 'approved' | 'rejected') {
     setSending(status);
@@ -129,7 +130,9 @@ function ReviewCase({ review: r, api, busy, onOpenLedger, onResolved }: CaseProp
     busy.current += 1;
     try {
       await api.resolveReview(r.review_id, status, note);
-      await onResolved(`Cererea lui ${name} a fost ${status === 'approved' ? 'aprobata' : 'respinsa'}. Clientul vede decizia in aplicatie.`);
+      await onResolved(art35
+        ? `Ai notat ca l-ai contactat pe ${name}. Contractul ramane neschimbat.`
+        : `Cererea lui ${name} a fost ${status === 'approved' ? 'aprobata' : 'respinsa'}. Clientul vede decizia in aplicatie.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Decizia nu s-a putut salva.');
     } finally {
@@ -150,13 +153,21 @@ function ReviewCase({ review: r, api, busy, onOpenLedger, onResolved }: CaseProp
               </span>
             )}
           </div>
+          {art35 && (
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+              <span className={`${chip} bg-amber-50 text-amber-800 ring-amber-200`}>Rata ratata · CCD2 art. 35</span>
+              <span className="text-slate-700">
+                Rata {art35.installment_n} din {fmtDay(art35.missed_due_date)} nu a fost platita. Clientul a ales „Vorbeste cu un om”.
+              </span>
+            </p>
+          )}
           <p className="text-sm text-slate-600">
-            {r.requested_by === 'customer' ? 'Clientul a cerut revizuirea' : 'Motorul a trimis cererea la revizuire'} pe {fmtDateShort(r.requested_at)}.
+            {art35 ? 'Clientul a cerut sa vorbeasca cu un om' : r.requested_by === 'customer' ? 'Clientul a cerut revizuirea' : 'Motorul a trimis cererea la revizuire'} pe {fmtDateShort(r.requested_at)}.
             {' '}{productLabel(r.application.sku, r.application.product_id, r.application.term_months)}: credit {fmtLei(r.application.principal_lei)}, rata {fmtLei(r.application.installment_lei)} pe luna.
           </p>
         </header>
 
-        {a && (
+        {a && !art35 && (
           <div>
             <p className="mb-2 flex flex-wrap items-center gap-2 text-sm">
               <span className={`${chip} ${statusTone(a.decision === 'manual_review' ? 'manual_review' : a.decision)}`}>
@@ -219,11 +230,21 @@ function ReviewCase({ review: r, api, busy, onOpenLedger, onResolved }: CaseProp
               onChange={(e) => setNote(e.target.value)}
               maxLength={1000}
               rows={4}
-              placeholder="De ce ai decis asa"
+              placeholder={art35 ? 'Ce ati stabilit cu clientul' : 'De ce ai decis asa'}
               className={`w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 ${focusRing}`}
             />
             <p className="text-xs text-slate-500">{note.length}/1000. Nota ramane intern; in jurnal se salveaza doar ca exista.</p>
             {error && <ErrorNote text={error} />}
+            {art35 ? (
+              <button
+                type="button"
+                disabled={sending !== null}
+                onClick={() => void resolve('approved')}
+                className={`${btnBase} bg-slate-900 text-white hover:bg-slate-800`}
+              >
+                {sending === 'approved' ? 'Se salveaza…' : 'Am contactat clientul'}
+              </button>
+            ) : (
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -242,11 +263,12 @@ function ReviewCase({ review: r, api, busy, onOpenLedger, onResolved }: CaseProp
                 {sending === 'rejected' ? 'Se salveaza…' : 'Respinge'}
               </button>
             </div>
+            )}
           </>
         ) : (
           <div className="space-y-2 text-sm">
-            <span className={`${chip} ${statusTone(r.status)}`}>
-              {r.status === 'approved' ? 'Aprobata de operator' : 'Respinsa de operator'}
+            <span className={`${chip} ${statusTone(art35 ? 'approved' : r.status)}`}>
+              {art35 ? 'Client contactat' : r.status === 'approved' ? 'Aprobata de operator' : 'Respinsa de operator'}
             </span>
             {r.resolved_at && <p className="text-slate-600">Rezolvata pe {fmtDateShort(r.resolved_at)}.</p>}
             <p className="text-slate-600">Cererea e acum: {STATUS_LABEL[r.application.status] ?? r.application.status}.</p>

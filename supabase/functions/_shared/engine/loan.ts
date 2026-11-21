@@ -47,6 +47,41 @@ export class QuoteError extends Error {
 }
 
 /**
+ * Graficul unei anuitati (rate egale, dobanda fixa), in bani.
+ * Rata k e la addMonths(anchorDate, monthOffset + k) – la oferta: anchor = data semnarii, offset 0.
+ * Rata se rotunjeste la ban; ULTIMA rata se ajusteaza ca soldul sa ajunga exact la 0.
+ * O folosesc si oferta, si masurile de toleranta (art. 35).
+ */
+/** Rata lunara a unei anuitati, in bani, rotunjita la ban. */
+export function annuityPaymentBani(principalBani: number, n: number, nominalRatePct: number): number {
+  const r = nominalRatePct / 100 / 12;
+  return r === 0 ? Math.round(principalBani / n) : Math.round((principalBani * r) / (1 - Math.pow(1 + r, -n)));
+}
+
+export function amortize(principalBani: number, n: number, nominalRatePct: number, anchorDate: string, monthOffset: number): ScheduleRow[] {
+  const P = principalBani;
+  const r = nominalRatePct / 100 / 12;
+  const payment = annuityPaymentBani(P, n, nominalRatePct);
+
+  const schedule: ScheduleRow[] = [];
+  let balance = P;
+  for (let k = 1; k <= n; k++) {
+    const interest = Math.round(balance * r);
+    const principal = k === n ? balance : payment - interest;
+    balance -= principal;
+    schedule.push({
+      n: k,
+      due_date: addMonths(anchorDate, monthOffset + k),
+      amount_lei: toLei(principal + interest),
+      principal_lei: toLei(principal),
+      interest_lei: toLei(interest),
+      balance_lei: toLei(balance),
+    });
+  }
+  return schedule;
+}
+
+/**
  * Calculeaza oferta pentru un produs si un termen.
  * startDate = data semnarii (YYYY-MM-DD); prima rata e la o luna de la semnare.
  */
@@ -60,28 +95,9 @@ export function buildQuote(device: Device, product: CreditProduct, termMonths: n
 
   const P = toBani(device.price_lei);
   const n = termMonths;
-  const r = product.nominal_rate_pct / 100 / 12;
-
-  const payment = r === 0 ? Math.round(P / n) : Math.round((P * r) / (1 - Math.pow(1 + r, -n)));
-
-  const schedule: ScheduleRow[] = [];
-  let balance = P;
-  let totalInterest = 0;
-  for (let k = 1; k <= n; k++) {
-    const interest = Math.round(balance * r);
-    const principal = k === n ? balance : payment - interest;
-    const amount = principal + interest;
-    balance -= principal;
-    totalInterest += interest;
-    schedule.push({
-      n: k,
-      due_date: addMonths(startDate, k),
-      amount_lei: toLei(amount),
-      principal_lei: toLei(principal),
-      interest_lei: toLei(interest),
-      balance_lei: toLei(balance),
-    });
-  }
+  const schedule = amortize(P, n, product.nominal_rate_pct, startDate, 0);
+  const payment = annuityPaymentBani(P, n, product.nominal_rate_pct);
+  const totalInterest = schedule.reduce((s, row) => s + toBani(row.interest_lei), 0);
 
   const fees = toBani(product.fees_lei);
   const totalPayable = P + totalInterest + fees;

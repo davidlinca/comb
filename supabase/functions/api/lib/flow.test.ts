@@ -157,3 +157,70 @@ test('cardul „Cererea ta”: ultima cerere neincheiata', () => {
   assert.equal(pickCurrent([a('rejected', '1'), a('signed', '2', 'withdrawn')]), null);
   assert.equal(pickCurrent([]), null);
 });
+
+// ---------- Rata ratata (art. 35), contract v0.6 ----------
+import {
+  FORBEARANCE_TALK_MESSAGE, forbearanceText, isForbearanceOption, measureJson, missedNoticeText, nrRate, planJson,
+} from './flow.ts';
+import { deferOneMonth, reschedule } from '../../_shared/engine/index.ts';
+
+const ANA_T = { principal_lei: 2199, nominal_rate_pct: 14.9, installments: 24, signed_date: '2026-11-21' };
+
+test('art. 35: optiunile permise', () => {
+  for (const o of ['defer', 'reschedule', 'talk']) assert.equal(isForbearanceOption(o), true, o);
+  for (const o of ['forgive', '', null, 1, 'DEFER']) assert.equal(isForbearanceOption(o), false, String(o));
+  assert.equal(FORBEARANCE_TALK_MESSAGE, 'Rata ratata: vreau sa vorbesc cu un om.');
+});
+
+test('art. 35: numarul de rate in romana (1 rata, 9 rate, 29 de rate)', () => {
+  assert.equal(nrRate(1), '1 rata');
+  assert.equal(nrRate(9), '9 rate');
+  assert.equal(nrRate(19), '19 rate');
+  assert.equal(nrRate(20), '20 de rate');
+  assert.equal(nrRate(29), '29 de rate');
+  assert.equal(nrRate(105), '105 rate');
+});
+
+test('art. 35: mesajul la rata ratata are suma, data in romana si „fara comisioane”', () => {
+  assert.equal(missedNoticeText({ n: 1, due_date: '2026-12-21', amount_lei: 106.52 }),
+    'Rata 1 (106,52 lei), cu scadenta pe 21 dec. 2026, nu a fost platita. Te putem ajuta: poti amana rata o luna, poti reesalona sau poti vorbi cu un coleg. Fara comisioane.');
+});
+
+test('art. 35: textele dupa alegere (Ana)', () => {
+  assert.equal(forbearanceText('defer', deferOneMonth(ANA_T, 1)),
+    'Ratele se muta cu o luna. Urmatoarea rata (106,52 lei) e pe 21 ian. 2027. Platesti in plus doar 27,30 lei dobanda pentru luna in plus, adaugata la ultima rata. Fara comisioane.');
+  assert.equal(forbearanceText('reschedule', reschedule(ANA_T, 1)),
+    'Ai 29 de rate a cate 91,89 lei, prima pe 21 ian. 2027. Total de plata: 2.664,80 lei (cu 108,38 lei dobanda in plus). Fara comisioane.');
+  assert.equal(forbearanceText('talk', null), 'Un coleg revine in 24 de ore.');
+  const z = { principal_lei: 399, nominal_rate_pct: 0, installments: 4, signed_date: '2026-11-21' };
+  assert.match(forbearanceText('defer', deferOneMonth(z, 1)), /Nu platesti nimic in plus\. Fara comisioane\.$/);
+});
+
+test('art. 35: varianta afisata inainte de alegere (forma din contract v0.6)', () => {
+  const j = planJson(reschedule(ANA_T, 1));
+  assert.deepEqual(Object.keys(j), ['installment_lei', 'last_installment_lei', 'installments', 'first_due_date', 'last_due_date',
+    'total_payable_lei', 'extra_cost_lei', 'schedule']);
+  assert.equal(j.schedule.length, 29);
+});
+
+test('art. 35: masura salvata -> JSON (numeric din Postgres vine ca text)', () => {
+  const p = deferOneMonth(ANA_T, 1);
+  const j = measureJson({
+    option: 'defer', installment_n: 1, missed_due_date: '2026-12-21', created_at: '2026-11-21T15:00:00Z',
+    extra_cost_lei: '27.30', new_installment_lei: '106.52', new_installments: 24, new_total_payable_lei: '2583.72', schedule: p.schedule,
+  }, null);
+  assert.equal(j.extra_cost_lei, 27.3);
+  assert.equal(j.total_payable_lei, 2583.72);
+  assert.equal(j.first_due_date, '2027-01-21');
+  assert.equal(j.last_due_date, '2028-12-21');
+  assert.equal(j.last_installment_lei, 133.76);
+  assert.equal(j.text, forbearanceText('defer', p));
+  const t = measureJson({
+    option: 'talk', installment_n: 1, missed_due_date: '2026-12-21', created_at: '2026-11-21T15:00:00Z',
+    extra_cost_lei: null, new_installment_lei: null, new_installments: null, new_total_payable_lei: null, schedule: null,
+  }, { status: 'pending', resolved_at: null });
+  assert.equal(t.installment_lei, null);
+  assert.equal(t.schedule, null);
+  assert.equal(t.text, 'Un coleg revine in 24 de ore.');
+  assert.deepEqual(t.review, { status: 'pending', resolved_at: null });
+});

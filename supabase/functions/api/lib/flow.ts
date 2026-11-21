@@ -1,6 +1,6 @@
 // Reguli pure pentru partea 2 (revizuire, OTP, contract, retragere). Fara DB si fara retea -> testate in flow.test.ts.
 
-import { addDays, canWithdraw, localDate, sha256Hex } from '../../_shared/engine/index.ts';
+import { addDays, canWithdraw, type ForbearancePlan, leiExact, localDate, type ScheduleRow, sha256Hex } from '../../_shared/engine/index.ts';
 
 export const OPERATOR_NAME = 'Telvia (demo)'; // numele operatorului fictiv ales de David (21.11, 14:20); seed-ul vechi are 'Operatorul demo'
 export const REVIEW_ETA_TEXT = 'Un coleg revine in 24 de ore.';
@@ -121,6 +121,83 @@ export const reminderText = (deadline: string) =>
   `Iti amintim ca te poti retrage din contract pana la ${dataRo(deadline)}, fara motiv.`;
 
 export const isDemoDays = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 60;
+
+// ---------- Rata ratata: masuri de toleranta (art. 35), decizii 21.11, 15:55 si 16:20 ----------
+
+export const FORBEARANCE_OPTIONS = ['defer', 'reschedule', 'talk'] as const;
+export type ForbearanceOptionId = typeof FORBEARANCE_OPTIONS[number];
+export const isForbearanceOption = (v: unknown): v is ForbearanceOptionId =>
+  typeof v === 'string' && (FORBEARANCE_OPTIONS as readonly string[]).includes(v);
+
+/** Mesajul fix pus in coada din back-office cand clientul alege „vorbeste cu un om”. */
+export const FORBEARANCE_TALK_MESSAGE = 'Rata ratata: vreau sa vorbesc cu un om.';
+
+const lei = (v: number) => `${leiExact(v)} lei`;
+/** 1 rata, 2-19 rate, 20+ de rate (101-119 fara „de”). */
+export const nrRate = (n: number) => (n === 1 ? '1 rata' : n % 100 >= 1 && n % 100 <= 19 ? `${n} rate` : `${n} de rate`);
+
+/** Mesajul simulat trimis cand rata nu a fost platita (o singura data pe contract). */
+export const missedNoticeText = (m: { n: number; due_date: string; amount_lei: number }) =>
+  `Rata ${m.n} (${lei(m.amount_lei)}), cu scadenta pe ${dataRo(m.due_date)}, nu a fost platita. ` +
+  'Te putem ajuta: poti amana rata o luna, poti reesalona sau poti vorbi cu un coleg. Fara comisioane.';
+
+type PlanFigures = Pick<ForbearancePlan, 'installment_lei' | 'installments' | 'first_due_date' | 'total_payable_lei' | 'extra_cost_lei'>;
+
+/** Textul afisat dupa alegere, in limbaj simplu. */
+export function forbearanceText(option: ForbearanceOptionId, p: PlanFigures | null): string {
+  if (option === 'talk' || !p) return REVIEW_ETA_TEXT;
+  const extra = p.extra_cost_lei > 0;
+  if (option === 'defer') {
+    return `Ratele se muta cu o luna. Urmatoarea rata (${lei(p.installment_lei)}) e pe ${dataRo(p.first_due_date)}. ` +
+      (extra ? `Platesti in plus doar ${lei(p.extra_cost_lei)} dobanda pentru luna in plus, adaugata la ultima rata.` : 'Nu platesti nimic in plus.') +
+      ' Fara comisioane.';
+  }
+  return `Ai ${nrRate(p.installments)} a cate ${lei(p.installment_lei)}, prima pe ${dataRo(p.first_due_date)}. ` +
+    `Total de plata: ${lei(p.total_payable_lei)}` + (extra ? ` (cu ${lei(p.extra_cost_lei)} dobanda in plus).` : ', nimic in plus.') +
+    ' Fara comisioane.';
+}
+
+/** O varianta aratata clientului INAINTE sa aleaga (contract v0.6). */
+export const planJson = (p: ForbearancePlan) => ({
+  installment_lei: p.installment_lei, last_installment_lei: p.last_installment_lei, installments: p.installments,
+  first_due_date: p.first_due_date, last_due_date: p.last_due_date,
+  total_payable_lei: p.total_payable_lei, extra_cost_lei: p.extra_cost_lei, schedule: p.schedule,
+});
+
+export type MeasureRow = {
+  option: ForbearanceOptionId; installment_n: number; missed_due_date: string; created_at: string;
+  extra_cost_lei: number | string | null; new_installment_lei: number | string | null; new_installments: number | null;
+  new_total_payable_lei: number | string | null; schedule: ScheduleRow[] | null;
+};
+export type MeasureReview = { status: string; resolved_at: string | null } | null;
+
+/** Masura aleasa, din randul salvat (numeric vine ca text din Postgres). */
+export function measureJson(m: MeasureRow, review: MeasureReview) {
+  const num = (v: number | string | null) => (v == null ? null : Number(v));
+  const s = m.schedule;
+  const plan = s && s.length
+    ? {
+      installment_lei: num(m.new_installment_lei)!, installments: m.new_installments!, first_due_date: s[0].due_date,
+      total_payable_lei: num(m.new_total_payable_lei)!, extra_cost_lei: num(m.extra_cost_lei)!,
+    }
+    : null;
+  return {
+    option: m.option,
+    chosen_at: m.created_at,
+    installment_n: m.installment_n,
+    missed_due_date: m.missed_due_date,
+    installment_lei: plan?.installment_lei ?? null,
+    last_installment_lei: s && s.length ? s[s.length - 1].amount_lei : null,
+    installments: plan?.installments ?? null,
+    first_due_date: plan?.first_due_date ?? null,
+    last_due_date: s && s.length ? s[s.length - 1].due_date : null,
+    total_payable_lei: plan?.total_payable_lei ?? null,
+    extra_cost_lei: plan?.extra_cost_lei ?? null,
+    schedule: s ?? null,
+    text: forbearanceText(m.option, plan),
+    review: review ? { status: review.status, resolved_at: review.resolved_at } : null,
+  };
+}
 
 // ---------- Oferta salvata vs recalculata ----------
 

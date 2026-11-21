@@ -81,6 +81,7 @@ r.get('/reviews', async (c) => {
 
   let q = db.from('human_reviews').select(`
     id, requested_by, customer_message, status, operator_note, requested_at, resolved_at,
+    forbearance_measures(option, installment_n, missed_due_date),
     applications!inner(id, status, sku, product_id, term_months, principal_lei, installment_lei, created_at,
       customers(code, display_name, segment, tenure_months),
       assessments(decision, reasons, dti_pct, residual_lei, late_bills_12m, net_income_lei, monthly_expenses_lei,
@@ -97,8 +98,12 @@ r.get('/reviews', async (c) => {
       const a = rec(h.applications)!;
       const cu = rec(a.customers);
       const as = rec(a.assessments);
+      const fm = rec(h.forbearance_measures);
       return {
         review_id: h.id, status: h.status, requested_by: h.requested_by, requested_at: h.requested_at,
+        // art. 35 (v0.6): „vorbeste cu un om” dupa o rata ratata, pe un contract deja semnat
+        topic: fm ? 'forbearance' : 'decision',
+        forbearance: fm ? { option: fm.option, installment_n: fm.installment_n, missed_due_date: fm.missed_due_date } : null,
         customer_message: h.customer_message, operator_note: h.operator_note, resolved_at: h.resolved_at,
         application: {
           application_id: a.id, status: a.status, sku: a.sku, product_id: a.product_id, term_months: a.term_months,

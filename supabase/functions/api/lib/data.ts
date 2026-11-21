@@ -67,7 +67,7 @@ export type AgreementRow = {
   first_installment_due: string; withdrawal_deadline: string; reminder_required: boolean;
   reminder_from: string | null; reminder_to: string | null; status: 'active' | 'withdrawn';
   withdrawn_at: string | null; amount_to_return_lei: number | null; return_by: string | null; demo_offset_days: number;
-  app: { customer_id: string; principal_lei: number; nominal_rate_pct: number };
+  app: { customer_id: string; principal_lei: number; nominal_rate_pct: number; installments: number };
 };
 
 /** Contractul clientului logat (operatorul -> 403, contractul altcuiva -> 404). */
@@ -75,7 +75,7 @@ export async function myAgreement(db: SupabaseClient, userId: string, id: unknow
   const cu = await myCustomer(db, userId);
   if (typeof id !== 'string' || !isUuid(id)) throw notFound('Contractul nu exista.');
   const { data, error } = await db.from('agreements')
-    .select('*, applications!inner(customer_id, principal_lei, nominal_rate_pct)').eq('id', id).maybeSingle();
+    .select('*, applications!inner(customer_id, principal_lei, nominal_rate_pct, installments)').eq('id', id).maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw notFound('Contractul nu exista.');
   const { applications: a, ...rest } = data as Record<string, unknown> & { applications: Record<string, unknown> };
@@ -83,7 +83,10 @@ export async function myAgreement(db: SupabaseClient, userId: string, id: unknow
   return {
     ...(rest as unknown as Omit<AgreementRow, 'app'>),
     amount_to_return_lei: rest.amount_to_return_lei == null ? null : Number(rest.amount_to_return_lei),
-    app: { customer_id: String(a.customer_id), principal_lei: Number(a.principal_lei), nominal_rate_pct: Number(a.nominal_rate_pct) },
+    app: {
+      customer_id: String(a.customer_id), principal_lei: Number(a.principal_lei), nominal_rate_pct: Number(a.nominal_rate_pct),
+      installments: Number(a.installments),
+    },
   };
 }
 

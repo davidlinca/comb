@@ -60,6 +60,9 @@ export type Review = {
   customer_message: string | null;
   operator_note: string | null;
   resolved_at: string | null;
+  // art. 35 (v0.6): „vorbeste cu un om” dupa o rata ratata (contract deja semnat); lipsesc pe API-ul vechi
+  topic?: 'decision' | 'forbearance';
+  forbearance?: { option: 'defer' | 'reschedule' | 'talk'; installment_n: number; missed_due_date: string } | null;
   application: {
     application_id: string; status: string; sku: string; product_id: string; term_months: number;
     principal_lei: number | null; installment_lei: number | null; created_at: string;
