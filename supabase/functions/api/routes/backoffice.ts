@@ -11,7 +11,7 @@ const r = new Hono<Env>();
 // Montat in index.ts la /backoffice -> middleware-ul se aplica doar pe /backoffice/*
 r.use('*', requireOperator);
 
-const LIST_LIMIT = 25; // decizie 21.11: ultimele 25 de cereri, verificate in paralel, fara migrare
+const LIST_LIMIT = 25; // decizie 21.11: ultimele 25 de cereri nearhivate, verificate in paralel
 
 const one = <T>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 type Rec = Record<string, unknown>;
@@ -58,8 +58,10 @@ r.get('/ledger', async (c) => {
     });
   }
 
+  // Cererile arhivate (curatare demo) nu apar in lista; detaliul lor ramane accesibil cu ?application_id=
   const { data: apps, error } = await db.from('applications')
     .select('id, status, sku, product_id, term_months, created_at, customers(code, display_name)')
+    .is('archived_at', null)
     .order('created_at', { ascending: false }).limit(LIST_LIMIT);
   if (error) throw new Error(error.message);
   const checks = await Promise.all((apps ?? []).map((a) => verify(a.id)));
@@ -83,7 +85,7 @@ r.get('/reviews', async (c) => {
       customers(code, display_name, segment, tenure_months),
       assessments(decision, reasons, dti_pct, residual_lei, late_bills_12m, net_income_lei, monthly_expenses_lei,
         other_installments_declared_lei, other_installments_bureau_lei, other_installments_used_lei, billing_history_used))
-  `);
+  `).is('applications.archived_at', null); // fara cererile arhivate (curatare demo)
   q = which === 'pending' ? q.eq('status', 'pending').order('requested_at') : q.order('requested_at', { ascending: false }).limit(50);
   const { data, error } = await q;
   if (error) throw new Error(error.message);

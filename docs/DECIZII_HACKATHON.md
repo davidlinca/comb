@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 10:50 (ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 11:30 (pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -11,7 +11,7 @@ Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 - Clientul e un **abonat existent**: alege telefonul, trece prin verificarea accesibilitatii, intelege contractul pe **un singur ecran** si semneaza cu OTP.
 - Fiecare pas lasa o **dovada** intr-un jurnal (cu hash inlantuit), pe care operatorul o vede in back-office.
 - **Aplicatia clientului e pentru mobil** (pagina web pe telefon). **Back-office-ul e pentru desktop.** Un singur proiect React.
-- **App si pitch in romana.**
+- **Aplicatia in romana, pitch-ul in engleza (3–5 minute)** (21.11, 11:00).
 - **David:** Figma (cu limita de timp), apoi ecranele in React (in propria lui conversatie sau unealta), testele cu oameni, deck-ul si pitch-ul.
 - **Bogdan + Claude:** baza de date, API-ul, motorul (DAE, accesibilitate), jurnalul, securitatea, deploy-ul si back-office-ul. Claude scrie codul, Bogdan il verifica si cere explicatii sau modificari.
 - David lucreaza pe **mock-uri JSON** (sectiunea 6) pana e gata API-ul, ca sa nu se astepte unul pe altul.
@@ -32,7 +32,7 @@ Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 | Deploy | Web: Vercel, legat de repo-ul lui David (prin conectorul Vercel). API: Supabase Edge Functions. Fara Render |
 | Brand | Operator fictiv (numele il alege David; sa nu semene cu Orange, Vodafone sau Digi). Creditor partener fictiv. Fara logo-uri reale |
 | Simulat | OTP (codul apare pe ecran), Biroul de Credit, creditorul partener, trimiterea pe email |
-| Limba | Aplicatia in romana, pitch in romana |
+| Limba | Aplicatia in romana (produs pentru clienti romani); pitch-ul in engleza, 3–5 minute (21.11, 11:00) |
 | Design | Figma intai (maxim 2,5 ore), apoi cod |
 | Accent in pitch | 40% dovada conformitatii · 35% contract inteles in sub 60 de secunde (masurat) · 25% date corecte si explicate |
 | Revizuire ceruta de client | Cererea trece in `manual_review` pana decide operatorul; SECCI si semnarea sunt blocate pana atunci (21.11, 03:00) |
@@ -41,6 +41,7 @@ Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 | Secretul OTP | `OTP_PEPPER` il seteaza Bogdan cu CLI; valoarea nu apare in chat, fisiere sau loguri (21.11, 03:00) |
 | Rutele de client | Doar clientul care detine cererea; operatorul lucreaza doar prin `/backoffice/*` (21.11, 03:00) |
 | Orele din plan | Orientative: cand un pas e gata mai devreme, trecem la urmatorul (21.11, 03:00) |
+| Date curate pentru demo | Nu stergem nimic. Coloana `applications.archived_at`: cererile arhivate dispar din back-office (lista + coada), jurnalul ramane valid. `data/archive_demo.sql` arhiveaza toate cererile celor 3 conturi demo; il ruleaza Bogdan in SQL Editor inainte de repetitii si inainte de pitch (21.11, 11:20) |
 
 ---
 
@@ -498,7 +499,7 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 
 ---
 
-## 15. Status (21.11, 10:50)
+## 15. Status (21.11, 11:30)
 
 | Ce | Stare |
 |---|---|
@@ -512,5 +513,7 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 | ZERO4 (casti, 4 rate, 0%) | verificat pe server cap-coada (smoke 71/71); la retragere textul spune „fara dobanda” |
 | Aplicatia clientului (`web/`, David) | in lucru la David, inca nu e pe GitHub (10:45) |
 | Deploy Vercel + QR | urmeaza (il importa David cand merge login-ul pe API) |
+| Arhivare cereri demo | migratia `20261121091630 application_archive` aplicata; codul din back-office si `data/archive_demo.sql` scrise, de facut deploy + rulat arhivarea |
+| Arhitectura | `docs/ARHITECTURA.md`: diagrame, toate rutele, starile cererii, exemplul Ana, jurnalul, securitatea |
 
 Detaliile tehnice, regulile de lucru si pasii urmatori exacti sunt in `PREDARE_CLAUDE.md` (in proiect si in `docs/`).
