@@ -163,6 +163,9 @@ function ReviewCase({ review: r, api, busy, onOpenLedger, onResolved }: CaseProp
                 {DECISION_LABEL[a.decision] ?? a.decision}
               </span>
               {!a.billing_history_used && <span className="text-slate-500">Istoricul facturilor nu a fost folosit.</span>}
+              {a.bank_data_used
+                ? <span className="text-slate-500">Venit verificat prin Open Banking (simulat).</span>
+                : <span className="font-medium text-amber-800">Venit neverificat: cere un document (fluturas, extras de cont).</span>}
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-slate-800">
               {a.reasons.map((x) => <li key={x.code}>{x.text}</li>)}
@@ -171,8 +174,16 @@ function ReviewCase({ review: r, api, busy, onOpenLedger, onResolved }: CaseProp
               <Metric label="Grad de indatorare" value={fmtPct(a.dti_pct)} hint="limita 40%" />
               <Metric label="Ramane dupa rate" value={fmtLei(a.residual_lei)} hint="sub 500 lei: revizuire" />
               <Metric label="Facturi intarziate" value={a.late_bills_12m == null ? 'fara istoric' : String(a.late_bills_12m)} hint="peste 30 de zile, 12 luni" />
-              <Metric label="Venit net declarat" value={fmtLei(a.net_income_lei)} />
-              <Metric label="Cheltuieli lunare" value={fmtLei(a.monthly_expenses_lei)} />
+              <Metric
+                label="Venit net folosit"
+                value={fmtLei(a.income_used_lei ?? a.net_income_lei)}
+                hint={`declarat ${fmtLei(a.net_income_lei)}, banca ${a.income_verified_lei == null ? 'neverificat' : fmtLei(a.income_verified_lei)}`}
+              />
+              <Metric
+                label="Cheltuieli folosite"
+                value={fmtLei(a.expenses_used_lei ?? a.monthly_expenses_lei)}
+                hint={`declarat ${fmtLei(a.monthly_expenses_lei)}, banca ${a.expenses_verified_lei == null ? 'neverificat' : fmtLei(a.expenses_verified_lei)}`}
+              />
               <Metric
                 label="Alte rate folosite"
                 value={fmtLei(a.other_installments_used_lei)}

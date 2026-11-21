@@ -5,7 +5,8 @@
   "scripts": {
     "test:schema": "node schema.test.mjs ../migrations/20261120231817_init_schema.sql",
     "test:seed": "node seed.test.mjs ../migrations/20261120231817_init_schema.sql ../../data/seed_demo.sql",
-    "test:archive": "node archive.test.mjs ../migrations/20261120231817_init_schema.sql ../migrations/20261121091630_application_archive.sql"
+    "test:archive": "node archive.test.mjs ../migrations/20261120231817_init_schema.sql ../migrations/20261121091630_application_archive.sql",
+    "test:bank": "node bank.test.mjs ../migrations/20261120231817_init_schema.sql ../migrations/20261121091630_application_archive.sql ../migrations/20261121094520_bank_verification.sql ../../data/bank_insights.sql"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.17"

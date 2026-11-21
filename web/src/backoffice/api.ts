@@ -71,6 +71,9 @@ export type Review = {
     monthly_expenses_lei: number | null; other_installments_declared_lei: number | null;
     other_installments_bureau_lei: number | null; other_installments_used_lei: number | null;
     billing_history_used: boolean;
+    // verificarea venitului (Open Banking, simulat); null pe evaluarile vechi
+    bank_data_used?: boolean; income_verified_lei?: number | null; income_used_lei?: number | null;
+    expenses_verified_lei?: number | null; expenses_used_lei?: number | null;
   } | null;
 };
 

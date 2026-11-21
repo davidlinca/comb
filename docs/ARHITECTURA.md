@@ -1,6 +1,6 @@
 # Arhitectura – Installments, Built In (Telco · Neofin)
 
-Versiune: 21.11.2026, 11:15. Descrie ce e in `main` (API `api` versiunea 4).
+Versiune: 21.11.2026, 12:15. Descrie ce e in `main` + verificarea venitului (Open Banking simulat, motor `engine-v2`).
 
 ---
 
@@ -90,8 +90,8 @@ Baza: `https://ezynswlvqqrzahpblkxu.supabase.co/functions/v1/api`. Toate (in afa
 | 2 | `GET /catalog` | 1 | Telefoane + accesoriu, produsele de credit, avertismentul, eticheta „personalizat” (null la prepaid) | – | – | – |
 | 3 | `POST /quotes` | 2 | Calculeaza oferta: rata, total, cost, DAE. Nu salveaza nimic | – | – | – |
 | 4 | `POST /applications` | 1→2 | Creeaza cererea cu oferta „inghetata” (snapshot). Cere dovada ca s-au afisat avertismentul si eticheta | `applications` | `offer_requested`, `ad_warning_shown`, `personalised_offer_disclosed` | `draft` |
-| 5 | `POST /applications/:id/consents` | 3 | Acordurile: nota de informare (obligatoriu), istoricul facturilor (optional) | `consents` | `consent_given` (1–2) | `draft` |
-| 6 | `POST /applications/:id/assessment` | 3→4 | Evaluarea: venit, cheltuieli, alte rate. Alte rate = max(declarat, Birou). Decizie + motive | `assessments`, `applications`, `human_reviews` (la Mihai) | `assessment_done` (doar hash-ul inputului), `debt_advice_shown` / `human_review_requested` | `approved` / `manual_review` / `rejected` |
+| 5 | `POST /applications/:id/consents` | 3 | Acordurile: nota de informare (obligatoriu), istoricul facturilor si datele bancare (alegere obligatorie true/false) | `consents` | `consent_given` (1–3) | `draft` |
+| 6 | `POST /applications/:id/assessment` | 3→4 | Evaluarea: venit = min(declarat, banca), cheltuieli = max(declarat, banca), alte rate = max(declarat, Birou). Fara acord bancar → revizuire umana. Decizie + motive + `verification` | `assessments`, `applications`, `human_reviews` (la Mihai) | `assessment_done` (doar hash-ul inputului), `debt_advice_shown` / `human_review_requested` | `approved` / `manual_review` / `rejected` |
 | 6b | `GET /applications/:id` | 2–6 | Starea cererii + `next_step` (la ce ecran revine aplicatia dupa refresh) | – | – | – |
 | 7 | `POST /applications/:id/human-review` | 4 | Clientul cere un om (art. 18(8)); mesaj optional | `human_reviews`, `applications` | `human_review_requested` | `manual_review` |
 | 8 | `GET /applications/:id/secci` | 5 | Contractul pe un ecran. Prima afisare il salveaza; apoi returneaza exact acelasi document. Verifica ca cifrele = snapshot | `secci_documents` | `secci_shown` (hash-ul documentului) | – |
@@ -146,15 +146,15 @@ Contractul (`agreements`) are propriile stari: `active` → `withdrawn` (retrage
 |---|---|---|
 | Login | email + parola la Supabase Auth | `access_token` |
 | 4 | `{ sku: "PH-2", product_id: "RATE", term_months: 24, shown: { ad_warning: true, personalised_label: true } }` | `application_id`, `draft`, oferta: 106,52 lei × 24, total 2.556,42, DAE 15,96% |
-| 5 | `{ billing_history: true, privacy_notice_read: true }` | `{ ok: true }` |
-| 6 | `{ net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_lei: 300 }` | `approved`, 3 motive, DTI ~8% |
+| 5 | `{ billing_history: true, bank_data: true, privacy_notice_read: true }` | `{ ok: true }` |
+| 6 | `{ net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_lei: 300 }` | `approved`, 4 motive (primul: venit verificat), DTI ~8%; `verification`: venit 5.200 declarat = 5.200 in banca |
 | 8 | – | SECCI: caseta cu esentialul + graficul cu 24 de rate |
 | 10 | – | `{ otp_demo_code, expires_in_s: 300 }` |
 | 11 | `{ otp: "......" }` | `agreement_id`, prima rata la o luna, retragere pana la +14 zile |
 | 14 + 12 | `{ agreement_id, days: 3 }` | `today` = ziua 3, reminder afisat |
 | 13 | – | de returnat 2.201,69 lei (2.199 + 2,69 dobanda) |
 
-Jurnalul Anei la final: `offer_requested → ad_warning_shown → personalised_offer_disclosed → consent_given ×2 → assessment_done → secci_shown → secci_viewed → otp_sent → agreement_signed → withdrawal_reminder_sent → withdrawn`, fiecare legat de hash-ul celui dinainte.
+Jurnalul Anei la final: `offer_requested → ad_warning_shown → personalised_offer_disclosed → consent_given ×3 → assessment_done → secci_shown → secci_viewed → otp_sent → agreement_signed → withdrawal_reminder_sent → withdrawn`, fiecare legat de hash-ul celui dinainte.
 
 ---
 
@@ -185,7 +185,7 @@ Jurnalul Anei la final: `offer_requested → ad_warning_shown → personalised_o
 
 | Real (functioneaza) | Simulat |
 |---|---|
-| Login, RLS, API, motorul DAE, decizia, SECCI salvat, OTP cu hash, contract, retragere, jurnalul cu hash, back-office | Biroul de Credit (date sintetice), creditorul partener (IFN fictiv), trimiterea pe email/SMS (codul OTP apare pe ecran), trecerea timpului („sari la ziua N”), toti clientii (date sintetice, cum cere brieful) |
+| Login, RLS, API, motorul DAE, decizia, verificarea venitului (regula min/max), SECCI salvat, OTP cu hash, contract, retragere, jurnalul cu hash, back-office | Biroul de Credit (date sintetice), contul bancar / Open Banking (date sintetice, tabelul `bank_account_insights`), creditorul partener (IFN fictiv), trimiterea pe email/SMS (codul OTP apare pe ecran), trecerea timpului („sari la ziua N”), toti clientii (date sintetice, cum cere brieful) |
 
 ---
 
