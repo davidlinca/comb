@@ -1,6 +1,6 @@
 # Predare pentru Claude – conversatia urmatoare
 
-Versiune: sambata 21.11.2026, 12:15 (verificarea venitului prin Open Banking simulat: migratie + date + engine-v2 + API v0.3; inainte: arhivare cereri demo + `docs/ARHITECTURA.md`; pitch in engleza 3–5 min, aplicatia ramane in romana; urmeaza integrarea cu David – vezi 5.0). Scris pentru conversatia noua (Opus 5.5, effort extra).
+Versiune: sambata 21.11.2026, 14:20 (pasii 1–3 din 5.0 facuti: ecranele 0–4 si `feat/backend-web-fixes` in `main` la `e106624`, arhivarea rulata la 14:11; urmeaza Vercel). Versiunea 13:55: ecranele 0–4 ale lui David testate live pe API-ul real; lista de lucru noua in 5.0. Versiunea 12:15: verificarea venitului prin Open Banking simulat: migratie + date + engine-v2 + API v0.3; inainte: arhivare cereri demo + `docs/ARHITECTURA.md`; pitch in engleza 3–5 min, aplicatia ramane in romana; urmeaza integrarea cu David – vezi 5.0). Scris pentru conversatia noua (Opus 5.5, effort extra).
 Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spune CUM lucram, UNDE e totul, CE e gata si CE urmeaza exact.
 
 ---
@@ -11,7 +11,7 @@ Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spun
 2. Ataseaza repo-ul: `add_repo` owner `davidlinca`, repo `comb`, apoi `git clone --depth 1 https://github.com/davidlinca/comb /home/claude/comb`. Push-ul din sesiune e refuzat (aplicatia Claude nu e instalata pe contul lui David) – nu e nevoie: Bogdan da commit-urile. (Repo-ul e public: `add_repo` poate raspunde ca citirea merge direct si propune clona in `/home/claude/davidlinca/comb` – e ok.)
 3. Cere acces la folderul lui Bogdan: `device_request_folder_access` cu `D:\HACKATHON\comb`. Acolo scrii fisierele (vezi sectiunea 6). Daca raspunde ca fereastra desktop nu e disponibila, Bogdan deschide aplicatia Claude desktop si reincerci.
 4. Verifica starea pe server (doar citire): `list_migrations`, `list_edge_functions`, numaratori din tabele, `ledger_verify` pe toate cererile.
-5. Da-i lui Bogdan un rezumat de maximum 8 randuri + intrebarile deschise (sectiunea 5.3), apoi incepi API partea 2.
+5. Da-i lui Bogdan un rezumat de maximum 6 randuri, apoi incepi cu sectiunea 5.4 (comenzile git in asteptare) si continui cu lista din 5.0, de la primul pas nefacut.
 
 ---
 
@@ -37,13 +37,13 @@ Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spun
 
 | Ce | Valoare |
 |---|---|
-| Repo | https://github.com/davidlinca/comb (public). `main` la `6ecefe0`. PR-uri merge-uite: #1 schema, #2 motor + date, #3 API partea 1, #4 docs v0.1, #5 docs predare, #6 API partea 2, #7 back-office, #8 text retragere 0%, #9 test ZERO4. La 10:45 proiectul `web/` al lui David NU era pe GitHub (in `main`, `web/` are doar `src/backoffice/`) – verifica cu `git ls-remote` |
+| Repo | https://github.com/davidlinca/comb (public). La 14:20 `main` la `e106624` (PR #14 ajustari web + smoke + docs; #13 ecranele 0–4 ale lui David; #12 verificare venit). Folderul lui Bogdan e pe `main`, curat. Verifica cu `git ls-remote` |
 | Folder local Bogdan | `D:\HACKATHON\comb` (Windows, PowerShell). Montat in device_bash la `$HOME/mnt/comb` |
 | Supabase | proiect `comb`, ref `ezynswlvqqrzahpblkxu`, org „MareBogdan's Org” (Free), regiunea eu-central-1 |
 | URL | `https://ezynswlvqqrzahpblkxu.supabase.co` |
 | Cheia publishable | `sb_publishable_LJBH2tJNlXCXEZCh9ujE2g_IBeMHh2f` (publica, merge in front, doar in headerul `apikey`) |
 | Cheia secret | DOAR in mediul Edge Function (`SUPABASE_SECRET_KEYS`). Niciodata in chat, fisiere sau front |
-| API | `https://ezynswlvqqrzahpblkxu.supabase.co/functions/v1/api` – Edge Function `api`, versiunea 3 (partea 2, 21.11 03:25), `verify_jwt = false` |
+| API | `https://ezynswlvqqrzahpblkxu.supabase.co/functions/v1/api` – Edge Function `api` cu engine-v2 (verificarea venitului), deploy facut de Bogdan ~12:30, confirmat live la 13:45; `verify_jwt = false` |
 | Migratii aplicate | `20261120231817 init_schema`, `20261121091630 application_archive` (coloana `applications.archived_at` + index partial; 21.11, 11:16), `20261121094520 bank_verification` (acord `bank_data`, tabel `bank_account_insights`, 5 coloane in `assessments`; 21.11, 11:45). Date: `data/bank_insights.sql` rulat (63 de randuri) |
 | Secrete Edge Function | `OTP_PEPPER` (setat de Bogdan cu `npx supabase secrets set` pe 21.11, valoarea nu apare nicaieri), `ALLOWED_ORIGINS` (de setat cu domeniul Vercel) |
 | Conturi demo | `ana@`, `mihai@`, `ioana@demo.comb.ro` – parola `Demo2026!` (publica, in front). `operator@demo.comb.ro` – parola doar la Bogdan, `app_metadata.role = operator` |
@@ -51,7 +51,7 @@ Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spun
 | Proiect claude.ai | „HACKATHON”: `DECIZII_HACKATHON.md`, `PREDARE_CLAUDE.md`, brieful PDF, 2 poze cu notite de pitch |
 | Doc de invatare pentru Bogdan | https://claude.ai/artifact/Gppawttr1LQRGWbNVNb36b (Docs) |
 
-**Starea datelor pe server (21.11, 11:15):** 63 clienti, 54 cereri (42 din seed + 12 create de testele API, toate pe Ana/Mihai/Ioana), 444 intrari in jurnal, 0 jurnale invalide, 18 contracte, 7 cereri in coada de revizuire. API `api` versiunea 4.
+**Starea datelor pe server (21.11, 14:20):** 63 clienti, 67 cereri (42 vizibile, 25 arhivate – toate cererile conturilor demo, ultima arhivare 14:11), 567 intrari in jurnal, 0 jurnale invalide, 22 contracte, 63 randuri bancare. Edge Function `api` versiunea 6 (engine-v2).
 
 ---
 
@@ -163,24 +163,31 @@ Implementat dupa specificatia de mai jos, cu deciziile din 5.3. Contractul final
 - **16. `GET/POST /backoffice/reviews`** (operator): coada `pending`; `POST { review_id, status: approved|rejected, note }` → update `human_reviews` (`operator_user_id`, `resolved_at`), statusul cererii, jurnal `human_review_resolved` (actor `operator`).
 - Dupa rute: extinzi `api_smoke.mjs` (SECCI → OTP → semnare → contract → „sari la ziua 3” → retragere; operator: coada + jurnal verificat; Ana nu are acces la back-office → 403). Bogdan face deploy si ruleaza testul.
 
-### 5.0 Ce mai e de facut (21.11, 10:50) – lista de lucru
-| # | Ce | Cine | De la David | Nivel |
+### 5.0 Ce mai e de facut (21.11, 14:20) – lista de lucru
+Gata: schema, motor (engine-v2), date demo + date bancare, API 1–16, back-office, ZERO4, arhivare, verificarea venitului (deploy + smoke 75/76, FAIL-ul era in test si e reparat), ghid `docs/GHID_PROIECT.html`, ecranele 0–4 ale lui David testate live (Ana aprobata, Ioana respinsa, zero erori).
+
+| # | Ce | Cine | Cand (tinta) | Nivel |
 |---|---|---|---|---|
-| 1 | ~~Test ZERO4 pe server~~ | – | – | gata (71/71; textul la retragere 0% corectat, API redeployat) |
-| 2 | Proiectul `web/` pe GitHub | David | push `feat/david-web` + PR | – |
-| 3 | Integrare cu API-ul real (CORS, token, erori) | David + noi | cod eroare + ruta | high |
-| 4 | Ruta `/backoffice` in router-ul lui (vezi `web/src/backoffice/README.md`) | noi, cu acordul lui | acord | medium |
-| 5 | Vercel (root `web`) + secretul `ALLOWED_ORIGINS` (`npx supabase secrets set ALLOWED_ORIGINS=https://<domeniu>,http://localhost:5173 --project-ref ...`) + QR | David importa, Bogdan secretul | domeniul | medium |
-| 6 | Numele operatorului/modelelor: update `devices` (cu aprobare) + `OPERATOR_NAME` in `lib/flow.ts` + redeploy | noi | numele | medium |
-| 7 | Date curate pentru demo – **decis si scris (11:20)**: `archived_at` (migratie aplicata), back-office-ul ascunde cererile arhivate, `data/archive_demo.sql` (Bogdan il ruleaza dupa deploy si duminica inainte de pitch). Test: `npm run test:archive` (8/8) | noi | – | gata dupa deploy |
-| 7b | Verificarea venitului (Open Banking simulat) – **scris + migratie + date aplicate (12:15)**. Ramane: PR `feat/backend-bank-verification`, deploy, smoke (verificari noi pentru 9.000 → 5.200 si fara acord → revizuire). Teste: `npm run test:bank` 16/16, motor 33/33. David: casuta 3 + „Ce am verificat” (mesaj trimis 11:50, contract v0.3) | noi + David | casuta + bloc | high |
-| 8 | Testul SECCI cu oameni | David | rezultatele | – |
-| 9 | Slide tehnic + securitate | noi | locul in deck | high |
-| 10 | Rezerva buguri | noi | – | high |
-| 11 | Optional: scena „rata ratata” (art. 35) | noi | – | high |
-| 12 | Duminica: OUG aparut? + video de rezerva | noi | – | medium |
-| 13 | Intrebari mentor Neofin | Bogdan/David | – | – |
-| 14 | Repetitii + trimitere (limita 13:30 duminica) | ambii | – | – |
+| 1 | ~~David da merge la `feat/david-web`~~ – FACUT (PR #13) | David | – | – |
+| 2 | ~~Comenzile git din 5.4 → PR → merge~~ – FACUT (PR #14, `main` la `e106624`, 14:10) | Bogdan | – | – |
+| 3 | ~~`data/archive_demo.sql` in SQL Editor~~ – FACUT (14:11, 0 cereri demo vizibile, 0 jurnale invalide) | Bogdan | – | – |
+| 4 | Vercel: David importa (root `web`), da domeniul; Bogdan: `npx supabase secrets set ALLOWED_ORIGINS=https://<domeniu>,http://localhost:5173 --project-ref ezynswlvqqrzahpblkxu`; Claude testeaza pe URL-ul public (Ana, Ioana, Mihai → back-office cu operatorul) | David + Bogdan + Claude | 15:00 | medium |
+| 5 | Numele operatorului in SECCI: `OPERATOR_NAME = 'Telvia (demo)'` in `lib/flow.ts` – SCRIS (14:20, flow 12/12), de comis + redeploy de Bogdan (modelele „Nova 3/5/7/9”, „Casti Air” sunt deja in baza) | noi | 15:30 | medium |
+| 6 | Ecranele 5–6 (SECCI, confirmare, OTP, contract, retragere, „Sari la ziua 3”) | David | 18:30 | – |
+| 7 | Integrare 5–6 pe API-ul real + test cap-coada (Ana cu retragere, Mihai cu aprobare live, ZERO4) | noi + David | 19:00 (poarta) | high |
+| 8 | Testul SECCI cu 3–5 oameni (cifra inainte/dupa) | David | 19:30 | – |
+| 9 | Slide tehnic + securitate (EN) + diagrama de arhitectura | noi | 21:00 | high |
+| 10 | Deck (EN) + scriptul demo-ului (3–5 min) | David (+ Bogdan la partea tehnica) | 23:00 | – |
+| 11 | Optional: a 3-a cifra din banca („rate vazute in cont”, DECIZII 16) | noi | doar daca 1–9 sunt gata | high |
+| 12 | Dum 07:00: a aparut OUG-ul? Video de rezerva (inregistrare demo), buguri | noi | 09:30 freeze | medium |
+| 13 | Dum 09:30–12:00: 3 repetitii cronometrate + Q&A (raspunsuri EN in ghid, cap. 13) | ambii | 12:00 | – |
+| 14 | Arhivare (`archive_demo.sql`) inainte de fiecare repetitie si inainte de pitch; trimitere | ambii | tinta 12:45, limita 13:30 | – |
+
+Observatii din testul live (13:45): pe un ecran scund de laptop sheet-ul de la „Alege perioada” se taie sus – pe telefon (844 px) e ok; de verificat pe Vercel. Mihai → back-office nu a fost testat live (cere parola operatorului).
+
+### 5.4 FACUT (14:10) – ajustarile web din testul live
+PR #14 `feat/backend-web-fixes` (`a9c5c12`) merge-uit dupa PR #13 (ecranele 0–4 ale lui David): `web/src/pages/BudgetSheet.tsx` (textul despre contul bancar), `web/src/pages/DecisionSheet.tsx` (decizie dupa specialist, iconite dupa codul motivului), `supabase/tests/api_smoke.mjs` (14 evenimente la Ana), `docs/DECIZII_HACKATHON.md` sectiunea 16. David poate atinge din nou cele 2 fisiere. Bogdan e pe `main`.
+Front-ul local: `cd web`, `npm install`, `.env.local` (cele 4 variabile, `VITE_USE_MOCKS=false`), `npm run dev` → http://localhost:5173 (permis de CORS). In `web/package.json` scripturile ruleaza `node node_modules/vite/bin/vite.js` (din cauza unui `:` in calea lui David) – nu le schimba.
 
 Explicatia back-office-ului pentru Bogdan: proiect claude.ai `HACKATHON/BACKOFFICE_EXPLICAT.md`.
 
@@ -195,7 +202,7 @@ Explicatia back-office-ului pentru Bogdan: proiect claude.ai `HACKATHON/BACKOFFI
 3. ~~Back-office~~ → `web/src/backoffice/`; ii spunem lui David cand e gata.
 4. ~~Vercel~~ → David importa cand merge login-ul pe API-ul real.
 5. Retragere: ce se intampla cu telefonul (intrebare pentru mentorul Neofin; pana atunci afisam doar suma de returnat).
-6. Numele operatorului si al modelelor (David) – le schimbam in `devices`/SECCI cand le avem (update de date = cu aprobare). In cod: `OPERATOR_NAME` din `lib/flow.ts`.
+6. ~~Numele operatorului~~ → „Telvia (demo)” in `OPERATOR_NAME` (21.11, 14:20). Modelele sunt deja in `devices`.
 7. ~~`GET /applications/{id}`~~ → adaugata (21.11, 03:20), ruta 6b in contract.
 
 ---
