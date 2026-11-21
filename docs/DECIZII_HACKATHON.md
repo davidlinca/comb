@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 01:25 (adaugate: sectiunile 13–14, proiectul Supabase si regula de merge din sectiunea 7). Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 01:50 (adaugate: sectiunile 13–14, proiectul Supabase si regula de merge din sectiunea 7, regulile de calcul din sectiunea 5, valorile exacte din exemplele sectiunii 6). Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -173,6 +173,15 @@ ZERO4 e intentionat in demo: il da un creditor partener (tert), pe mai mult de 5
 - Ce ramane = venit − cheltuieli − alte rate − rata noua. **Sub 0 → respins; intre 0 si 500 lei → revizuire umana** (prag ales de noi, presupunere).
 - **2 sau mai multe facturi intarziate peste 30 de zile in ultimele 12 luni → revizuire umana**, niciodata respingere automata.
 - Lipsa istoricului (prepaid) nu se pune ca minus.
+- **Alte rate = maximul dintre ce declara clientul si Biroul de Credit (simulat).** Daca Biroul arata mai mult, motivul afisat spune asta.
+- Pragurile exacte: 40,00% trece, peste 40% e respins; daca raman exact 500 lei, e aprobat.
+
+### Reguli de calcul (decise 21.11, 01:30; implementate in `supabase/functions/_shared/engine/`)
+- **DAE** dupa Anexa I CCD2, cu ipoteza „12 luni egale” (Ana: 15,96%). Credit 0% fara costuri = DAE 0.
+- **Rata** se rotunjeste la ban; **ultima rata se ajusteaza**, ca totalul din grafic sa fie exact (Ana: 23 × 106,52 + 106,46 = 2.556,42 lei).
+- **Prima rata** la o luna de la semnare (21 nov. → 21 dec.); daca ziua nu exista in luna, ultima zi a lunii.
+- **Retragere:** 14 zile calendaristice de la semnare. **Suma de returnat** = creditul + dobanda pe zilele folosite (rata anuala / 365 × zile), in maximum 30 de zile de la retragere. Ex.: retragere dupa 3 zile = 2.199 + 2,69 = 2.201,69 lei.
+- **Reminder:** daca a semnat la mai putin de 24 de ore dupa ce a vazut SECCI, reminder intre zilele 1 si 7 de la semnare.
 
 ---
 
@@ -235,7 +244,7 @@ ZERO4 e intentionat in demo: il da un creditor partener (tert), pe mai mult de 5
 `POST /quotes` – body `{ "sku": "PH-2", "product_id": "RATE", "term_months": 24 }`
 ```json
 { "installment_lei": 106.52, "installments": 24, "total_credit_lei": 2199.00,
-  "total_payable_lei": 2556.48, "total_cost_lei": 357.48,
+  "total_payable_lei": 2556.42, "total_cost_lei": 357.42,
   "nominal_rate_pct": 14.9, "apr_pct": 15.96 }
 ```
 
@@ -272,7 +281,7 @@ Pentru Mihai: `"decision": "manual_review"`, un motiv cu codul `BILLS_LATE`.
 {
   "secci_version": "v1",
   "key": { "total_credit_lei": 2199.00, "installment_lei": 106.52, "installments": 24,
-           "total_payable_lei": 2556.48, "total_cost_lei": 357.48,
+           "total_payable_lei": 2556.42, "total_cost_lei": 357.42,
            "apr_pct": 15.96, "nominal_rate_pct": 14.9, "rate_type": "fixa",
            "withdrawal_days": 14 },
   "creditor": { "name": "Credis IFN (demo)", "address": "Str. Exemplu 1, Bucuresti (demo)" },
