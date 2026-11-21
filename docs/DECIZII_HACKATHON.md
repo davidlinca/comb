@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 02:50 (adaugate: sectiunile 13–15, proiectul Supabase si regula de merge din sectiunea 7, regulile de calcul din sectiunea 5, valorile exacte si schimbarile v0.1 din sectiunea 6). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 03:35 (adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -35,6 +35,12 @@ Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 | Limba | Aplicatia in romana, pitch in romana |
 | Design | Figma intai (maxim 2,5 ore), apoi cod |
 | Accent in pitch | 40% dovada conformitatii · 35% contract inteles in sub 60 de secunde (masurat) · 25% date corecte si explicate |
+| Revizuire ceruta de client | Cererea trece in `manual_review` pana decide operatorul; SECCI si semnarea sunt blocate pana atunci (21.11, 03:00) |
+| Locul back-office-ului | `web/src/backoffice/`, scris de Bogdan + Claude. Ii spunem lui David cand e gata, nu inainte (21.11, 03:00) |
+| Deploy web pe Vercel | Il importa David, imediat ce merge login-ul pe API-ul real (Sincronizarea 1), ca sa testam CORS devreme (21.11, 03:00) |
+| Secretul OTP | `OTP_PEPPER` il seteaza Bogdan cu CLI; valoarea nu apare in chat, fisiere sau loguri (21.11, 03:00) |
+| Rutele de client | Doar clientul care detine cererea; operatorul lucreaza doar prin `/backoffice/*` (21.11, 03:00) |
+| Orele din plan | Orientative: cand un pas e gata mai devreme, trecem la urmatorul (21.11, 03:00) |
 
 ---
 
@@ -203,9 +209,11 @@ ZERO4 e intentionat in demo: il da un creditor partener (tert), pe mai mult de 5
 | 4 | POST | `/applications` | 1→2 | P0 |
 | 5 | POST | `/applications/{id}/consents` | 3 | P0 |
 | 6 | POST | `/applications/{id}/assessment` | 3→4 | P0 |
+| 6b | GET | `/applications/{id}` (nou in v0.2) | 2–6 | P0 |
 | 7 | POST | `/applications/{id}/human-review` | 4 | P0 |
 | 8 | GET | `/applications/{id}/secci` | 5 | P0 |
 | 9 | POST | `/applications/{id}/secci/viewed` | 5 | P1 |
+| 9b | POST | `/applications/{id}/secci/email` (nou in v0.2) | 5 | P1 |
 | 10 | POST | `/applications/{id}/otp` | 6 | P0 |
 | 11 | POST | `/applications/{id}/sign` | 6 | P0 |
 | 12 | GET | `/agreements/{id}` | 6 | P0 |
@@ -222,6 +230,21 @@ ZERO4 e intentionat in demo: il da un creditor partener (tert), pe mai mult de 5
 - Erorile pot avea `fields` (campurile gresite). Coduri noi: `FORBIDDEN_FIELD`, `CONSENTS_MISSING`, `PRIVACY_NOTICE_REQUIRED`, `TERM_NOT_ALLOWED`, `PRODUCT_NOT_APPLICABLE`, `ALREADY_ASSESSED` (409).
 - `/assessment` cere intai `/consents`; a doua evaluare pe aceeasi cerere → 409.
 - ID-urile sunt UUID; `app_001` din exemple e doar forma.
+
+### Schimbari v0.2 (21.11, 03:25) – rutele 6b si 7–16
+Publicate pe 21.11, 03:25 (functia `api` versiunea 3) si testate pe server. Valorile de mai jos sunt cele reale (Ana, PH-2, 24 luni).
+- **Toate rutele de client (5–14)** merg doar pentru clientul care detine cererea/contractul: operatorul primeste 403, cererea altcuiva 404.
+- **6b `GET /applications/{id}`** (nou, decis 21.11, 03:20) – starea cererii, pentru revenire dupa refresh si dupa revizuirea umana: `{ application_id, status, created_at, next_step, offer { sku, product_id, term_months, installment_lei, installments, total_credit_lei, total_payable_lei, total_cost_lei, nominal_rate_pct, apr_pct }, decision (decizia automata: `decision`, `automated`, `reasons`, `metrics`) | null, debt_advice | null, review { status, requested_by, requested_at, resolved_at } | null, secci_shown, agreement_id | null, agreement_status | null }`. `next_step` = `consents` · `assessment` · `wait_review` · `rejected` · `secci` · `sign` · `agreement` · `none` – spune la ce ecran revine aplicatia. Ex.: Mihai in revizuire → `wait_review`; dupa ce operatorul aproba → `secci`.
+- **7 `POST /applications/{id}/human-review`** – body optional `{ "message": "..." }` (max 1000 caractere). Merge pe `approved` si `rejected`; cererea trece in `manual_review` pana decide operatorul. Raspuns ca in exemplu. Erori 409: `REVIEW_PENDING` (exista deja o revizuire, inclusiv cea pornita de motor pentru Mihai), `REVIEW_NOT_ALLOWED` (`draft`), `ALREADY_SIGNED`.
+- **8 `GET /applications/{id}/secci`** – doar pentru `approved` (pentru `signed` returneaza documentul salvat). Prima afisare il salveaza; urmatoarele returneaza exact acelasi document. In plus fata de exemplu: `key.last_installment_lei`, `product { id, fees_lei }`, `schedule` cu toate ratele. Erori 409: `NOT_APPROVED`, `OFFER_CHANGED`.
+- **9 `POST /applications/{id}/secci/viewed`** – `{ "time_on_screen_ms": 42000, "details_opened": false }` → `{ "ok": true }`. Se trimite cand pleaca de pe ecranul 5 (timpul se aduna intre vizite). Eroare 409: `SECCI_NOT_SHOWN`.
+- **9b `POST /applications/{id}/secci/email`** (nou) – fara body → `{ "ok": true, "sent_at": "...", "channel": "email (simulat)" }`. Pentru butonul „Trimite-mi pe email”.
+- **10 `POST /applications/{id}/otp`** – fara body, doar dupa SECCI. Raspuns ca in exemplu. Erori: 409 `SECCI_NOT_SHOWN` / `NOT_APPROVED` / `ALREADY_SIGNED`, 429 `OTP_RATE_LIMIT` (max 3 coduri in 10 minute), 503 `OTP_NOT_CONFIGURED`.
+- **11 `POST /applications/{id}/sign`** – `{ "otp": "482913" }`; conteaza ultimul cod cerut. Raspuns ca in exemplu; `reminder_window` poate fi `null`. Erori 400: `VALIDATION` (nu are 6 cifre), `OTP_NOT_REQUESTED`, `OTP_EXPIRED`, `OTP_INVALID` (mesajul spune cate incercari mai are), `OTP_LOCKED` (dupa 5 greseli: cere cod nou). Erori 409: `ALREADY_SIGNED`, `OTP_ALREADY_USED`.
+- **12 `GET /agreements/{id}`** – in plus fata de exemplu: `agreement_id`, `application_id`, `signed_at`, `first_installment_due`, `today` (ziua „de azi” din demo), `demo_offset_days`, `reminder_window`, `withdrawal` (`null` sau `{ withdrawn_at, amount_to_return_lei, return_by }`). `reminders[]` = `{ sent_at, channel, text }`; reminderul apare singur cand „azi” intra in zilele 1–7.
+- **13 `POST /agreements/{id}/withdraw`** – fara body. Raspuns: `status`, `withdrawn_at`, `amount_to_return_lei`, `principal_lei`, `interest_lei`, `days_used`, `return_by`, `text`. Ana in ziua 3: 2.201,69 lei. Erori 409: `ALREADY_WITHDRAWN`, `WITHDRAWAL_EXPIRED`.
+- **14 `POST /demo/time-travel`** – `{ "agreement_id": "...", "days": 3 }` (0–60, valoare absoluta, nu se aduna) → `{ agreement_id, demo_offset_days, today }`. Butonul „Sari la ziua 3”, apoi `GET /agreements/{id}`.
+- **15–16 back-office** (doar operatorul, altfel 403; le foloseste back-office-ul nostru): `GET /backoffice/ledger` (ultimele 25 de cereri + `all_valid`), `GET /backoffice/ledger?application_id=` (`valid`, `entries_count`, `entries[]` cu `description`, `actor`, `payload`), `GET /backoffice/reviews` (`?status=all` pentru istoric), `POST /backoffice/reviews` `{ review_id, status: "approved" | "rejected", note? }`.
 
 ### Exemple de raspuns (mock-uri, pentru Ana)
 
@@ -362,6 +385,8 @@ web/src/
 
 „Bogdan” in tabel inseamna Bogdan + Claude: Claude scrie codul, Bogdan verifica.
 
+**Orele sunt orientative** (decizie 21.11, 03:00): cand un pas e gata mai devreme, trecem la urmatorul, fara sa asteptam ora din tabel.
+
 | Cand | Bogdan | David | Gata cand |
 |---|---|---|---|
 | **Sam 00:45–01:30** (impreuna) | Porneste conversatia noua, ataseaza repo-ul, conecteaza Vercel; Claude verifica proiectul Supabase si cheile | Fisier Figma, paleta, numele operatorului | Contract API v0 confirmat, catalog ales |
@@ -469,19 +494,21 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 | 12 | Secrete doar in variabile de mediu; `.env.local` in `.gitignore`, `.env.example` in repo | repo | P0 |
 | 13 | Limita de cereri pe OTP (3 coduri / 10 minute) | API | P1 |
 | 14 | Security Advisor Supabase fara avertismente | Supabase | P1 |
+| 15 | Rutele de client accepta doar clientul care detine cererea; operatorul (care vede tot) lucreaza doar prin `/backoffice/*` | Edge Function | P0 |
 
 ---
 
-## 15. Status (21.11, 02:50)
+## 15. Status (21.11, 03:35)
 
 | Ce | Stare |
 |---|---|
 | Proiect Supabase `comb` | creat, Frankfurt, Free |
 | Schema + RLS (15 tabele) | aplicata, testata (25/25 local), Security Advisor fara probleme reale |
 | Motorul (DAE, decizie, retragere, SECCI) | in repo, 25/25 teste in Node si Deno |
-| Date demo | pe server: 63 clienti, 983 facturi, 44 cereri, jurnale valide; conturile legate, operatorul are rol |
+| Date demo | pe server: 63 clienti, 983 facturi, 47 cereri, 370 intrari in jurnal, toate jurnalele valide; conturile legate, operatorul are rol |
 | API partea 1 (rutele 1–6) | publicat, test pe server 15/15 |
-| API partea 2 (rutele 7–16) | urmeaza (sambata dimineata) |
-| Back-office, deploy Vercel, QR | urmeaza (sambata seara) |
+| API partea 2 (rutele 6b, 7–16) | publicat (versiunea 3, `OTP_PEPPER` setat); test pe server 62/63 – singurul FAIL era in test (ordinea cheilor din jsonb), reparat; local: 12 teste noi + 25 motor |
+| Back-office (`web/src/backoffice/`) | urmeaza |
+| Deploy Vercel + QR | urmeaza (il importa David cand merge login-ul pe API) |
 
 Detaliile tehnice, regulile de lucru si pasii urmatori exacti sunt in `PREDARE_CLAUDE.md` (in proiect si in `docs/`).

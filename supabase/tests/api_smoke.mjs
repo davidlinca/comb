@@ -1,5 +1,8 @@
 // Test rapid pe API-ul publicat (ruleaza de pe laptop: node supabase/tests/api_smoke.mjs)
-// ATENTIE: creeaza cereri reale pentru Ana si Mihai (jurnalul nu se poate sterge). E ok pentru demo.
+// ATENTIE: creeaza cereri reale pentru Ana, Mihai si Ioana (jurnalul nu se poate sterge). E ok pentru demo.
+// Back-office (optional): parola operatorului NU e in fisier. In PowerShell:
+//   $env:OPERATOR_PASSWORD="..." ; node supabase/tests/api_smoke.mjs
+// Fara variabila, testele de operator sunt sarite (SKIP).
 const URL = 'https://ezynswlvqqrzahpblkxu.supabase.co';
 const KEY = 'sb_publishable_LJBH2tJNlXCXEZCh9ujE2g_IBeMHh2f';
 const API = `${URL}/functions/v1/api`;
@@ -57,5 +60,118 @@ await call(mihai, 'POST', `/applications/${appM.json?.application_id}/consents`,
 const asM = await call(mihai, 'POST', `/applications/${appM.json?.application_id}/assessment`, { net_income_lei: 3900, monthly_expenses_lei: 1800, other_installments_lei: 650 });
 ok('/assessment Mihai -> manual_review (BILLS_LATE)', asM.json?.decision === 'manual_review' && asM.json?.reasons?.[0]?.code === 'BILLS_LATE', JSON.stringify(asM.json));
 
+// ---------------- Partea 2 ----------------
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest' }).format(new Date());
+const plusDays = (d, n) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
+const ioana = await login('ioana@demo.comb.ro', 'Demo2026!');
+const idM = appM.json?.application_id;
+
+console.log('Ana, starea cererii:');
+const st = await call(ana, 'GET', `/applications/${id}`);
+ok('GET /applications/:id -> approved, pasul urmator secci', st.json?.status === 'approved' && st.json?.next_step === 'secci' &&
+  st.json?.decision?.decision === 'approved' && st.json?.offer?.installment_lei === 106.52 && st.json?.agreement_id === null, JSON.stringify(st.json));
+ok('Mihai NU vede starea cererii Anei -> 404', (await call(mihai, 'GET', `/applications/${id}`)).status === 404);
+
+console.log('Ana, SECCI:');
+ok('OTP inainte de SECCI -> 409 SECCI_NOT_SHOWN', (await call(ana, 'POST', `/applications/${id}/otp`)).json?.error?.code === 'SECCI_NOT_SHOWN');
+const sc = await call(ana, 'GET', `/applications/${id}/secci`);
+ok('/secci -> v1, 106,52, DAE 15,96, 14 zile', sc.json?.secci_version === 'v1' && sc.json?.key?.installment_lei === 106.52 &&
+  sc.json?.key?.apr_pct === 15.96 && sc.json?.key?.withdrawal_days === 14 && sc.json?.schedule?.length === 24, JSON.stringify(sc.json?.key));
+const sc2 = await call(ana, 'GET', `/applications/${id}/secci`);
+// jsonb din Postgres reordoneaza cheile -> comparam continutul cu cheile sortate
+const canon = (v) => v === null || typeof v !== 'object' ? JSON.stringify(v)
+  : Array.isArray(v) ? `[${v.map(canon).join(',')}]` : `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canon(v[k])}`).join(',')}}`;
+ok('/secci a doua oara -> acelasi document', canon(sc2.json) === canon(sc.json));
+ok('Mihai NU vede SECCI-ul Anei -> 404', (await call(mihai, 'GET', `/applications/${id}/secci`)).status === 404);
+ok('/secci/viewed -> ok', (await call(ana, 'POST', `/applications/${id}/secci/viewed`, { time_on_screen_ms: 42000, details_opened: false })).json?.ok === true);
+ok('/secci/viewed camp in plus -> 400', (await call(ana, 'POST', `/applications/${id}/secci/viewed`, { time_on_screen_ms: 1, details_opened: true, x: 1 })).status === 400);
+ok('/secci/email -> ok (simulat)', (await call(ana, 'POST', `/applications/${id}/secci/email`)).json?.ok === true);
+
+console.log('Ana, OTP + semnare:');
+ok('semnare fara cod cerut -> 400 OTP_NOT_REQUESTED', (await call(ana, 'POST', `/applications/${id}/sign`, { otp: '000000' })).json?.error?.code === 'OTP_NOT_REQUESTED');
+const otp = await call(ana, 'POST', `/applications/${id}/otp`);
+ok('/otp -> cod de 6 cifre, 300 s', /^\d{6}$/.test(otp.json?.otp_demo_code ?? '') && otp.json?.expires_in_s === 300, JSON.stringify(otp.json));
+const wrong = otp.json?.otp_demo_code === '000000' ? '111111' : '000000';
+const bad1 = await call(ana, 'POST', `/applications/${id}/sign`, { otp: wrong });
+ok('cod gresit -> 400 OTP_INVALID (mai ai 4)', bad1.json?.error?.code === 'OTP_INVALID' && bad1.json?.error?.message.includes('4'), JSON.stringify(bad1.json));
+ok('cod cu 5 cifre -> 400 VALIDATION', (await call(ana, 'POST', `/applications/${id}/sign`, { otp: '12345' })).json?.error?.code === 'VALIDATION');
+const sg = await call(ana, 'POST', `/applications/${id}/sign`, { otp: otp.json?.otp_demo_code });
+ok('/sign -> contract, termen azi+14, reminder zilele 1-7', !!sg.json?.agreement_id && sg.json?.withdrawal_deadline === plusDays(today, 14) &&
+  sg.json?.reminder_window?.from === plusDays(today, 1) && sg.json?.reminder_window?.to === plusDays(today, 7), JSON.stringify(sg.json));
+ok('a doua semnare -> 409 ALREADY_SIGNED', (await call(ana, 'POST', `/applications/${id}/sign`, { otp: otp.json?.otp_demo_code })).json?.error?.code === 'ALREADY_SIGNED');
+ok('revizuire pe cerere semnata -> 409', (await call(ana, 'POST', `/applications/${id}/human-review`, {})).status === 409);
+const agrId = sg.json?.agreement_id;
+const st2 = await call(ana, 'GET', `/applications/${id}`);
+ok('starea dupa semnare -> signed, pasul agreement, are agreement_id', st2.json?.status === 'signed' && st2.json?.next_step === 'agreement' && st2.json?.agreement_id === agrId, JSON.stringify(st2.json));
+
+console.log('Ana, contract + "Sari la ziua 3" + retragere:');
+const ag0 = await call(ana, 'GET', `/agreements/${agrId}`);
+ok('/agreements -> active, se poate retrage, fara reminder in ziua 0', ag0.json?.status === 'active' && ag0.json?.can_withdraw === true && ag0.json?.reminders?.length === 0, JSON.stringify(ag0.json));
+ok('Mihai NU vede contractul Anei -> 404', (await call(mihai, 'GET', `/agreements/${agrId}`)).status === 404);
+ok('time-travel 61 zile -> 400', (await call(ana, 'POST', '/demo/time-travel', { agreement_id: agrId, days: 61 })).status === 400);
+const tt = await call(ana, 'POST', '/demo/time-travel', { agreement_id: agrId, days: 3 });
+ok('/demo/time-travel 3 -> azi+3', tt.json?.today === plusDays(today, 3), JSON.stringify(tt.json));
+const ag3 = await call(ana, 'GET', `/agreements/${agrId}`);
+ok('ziua 3 -> reminder trimis', ag3.json?.reminders?.length === 1 && ag3.json?.today === plusDays(today, 3), JSON.stringify(ag3.json));
+ok('ziua 3 din nou -> tot 1 reminder', (await call(ana, 'GET', `/agreements/${agrId}`)).json?.reminders?.length === 1);
+const wd = await call(ana, 'POST', `/agreements/${agrId}/withdraw`);
+ok('/withdraw ziua 3 -> 2.201,69 lei, 3 zile', wd.json?.status === 'withdrawn' && wd.json?.amount_to_return_lei === 2201.69 && wd.json?.days_used === 3, JSON.stringify(wd.json));
+ok('a doua retragere -> 409 ALREADY_WITHDRAWN', (await call(ana, 'POST', `/agreements/${agrId}/withdraw`)).json?.error?.code === 'ALREADY_WITHDRAWN');
+
+console.log('Revizuire umana (client):');
+ok('Mihai, deja in revizuire -> 409 REVIEW_PENDING', (await call(mihai, 'POST', `/applications/${idM}/human-review`, {})).json?.error?.code === 'REVIEW_PENDING');
+const appI = await call(ioana, 'POST', '/applications', { sku: 'PH-2', product_id: 'RATE', term_months: 24, shown: { ad_warning: true } });
+const idI = appI.json?.application_id;
+await call(ioana, 'POST', `/applications/${idI}/consents`, { billing_history: false, privacy_notice_read: true });
+const asI = await call(ioana, 'POST', `/applications/${idI}/assessment`, { net_income_lei: 2600, monthly_expenses_lei: 1700, other_installments_lei: 900 });
+ok('Ioana -> rejected + consiliere', asI.json?.decision === 'rejected' && !!asI.json?.debt_advice, JSON.stringify(asI.json));
+ok('mesaj > 1000 caractere -> 400', (await call(ioana, 'POST', `/applications/${idI}/human-review`, { message: 'x'.repeat(1001) })).status === 400);
+const hrI = await call(ioana, 'POST', `/applications/${idI}/human-review`, { message: 'Am un venit nou din ianuarie.' });
+ok('Ioana cere revizuire -> manual_review + eta', hrI.json?.status === 'manual_review' && !!hrI.json?.eta_text, JSON.stringify(hrI.json));
+const stI = await call(ioana, 'GET', `/applications/${idI}`);
+ok('starea Ioanei -> wait_review, revizuire pending ceruta de client', stI.json?.next_step === 'wait_review' && stI.json?.review?.status === 'pending' &&
+  stI.json?.review?.requested_by === 'customer' && stI.json?.decision?.decision === 'rejected', JSON.stringify(stI.json));
+ok('a doua cerere de revizuire -> 409 REVIEW_PENDING', (await call(ioana, 'POST', `/applications/${idI}/human-review`)).json?.error?.code === 'REVIEW_PENDING');
+ok('SECCI pe cerere in revizuire -> 409 NOT_APPROVED', (await call(ioana, 'GET', `/applications/${idI}/secci`)).json?.error?.code === 'NOT_APPROVED');
+ok('Ana NU are back-office -> 403', (await call(ana, 'GET', '/backoffice/ledger')).status === 403);
+ok('Ana NU vede coada -> 403', (await call(ana, 'GET', '/backoffice/reviews')).status === 403);
+
+const OP_PASS = process.env.OPERATOR_PASSWORD;
+if (!OP_PASS) {
+  console.log('Operator: SKIP (seteaza OPERATOR_PASSWORD ca sa rulezi testele de back-office)');
+} else {
+  console.log('Operator, back-office:');
+  const op = await login('operator@demo.comb.ro', OP_PASS);
+  ok('operatorul NU poate da acorduri in numele clientului -> 403',
+    (await call(op, 'POST', `/applications/${idI}/consents`, { billing_history: true, privacy_notice_read: true })).status === 403);
+  const lg = await call(op, 'GET', `/backoffice/ledger?application_id=${id}`);
+  const evs = (lg.json?.entries ?? []).map((e) => e.event);
+  const expected = ['offer_requested', 'ad_warning_shown', 'personalised_offer_disclosed', 'consent_given', 'consent_given', 'assessment_done',
+    'secci_shown', 'secci_viewed', 'secci_emailed', 'otp_sent', 'agreement_signed', 'withdrawal_reminder_sent', 'withdrawn'];
+  ok('jurnalul Anei -> valid, 13 evenimente in ordine', lg.json?.valid === true && JSON.stringify(evs) === JSON.stringify(expected), JSON.stringify({ valid: lg.json?.valid, evs }));
+  ok('jurnalul are articol CCD2 si hash pe fiecare rand', (lg.json?.entries ?? []).every((e) => e.ccd2_ref && /^[0-9a-f]{64}$/.test(e.hash)));
+  const list = await call(op, 'GET', '/backoffice/ledger');
+  ok('lista jurnalelor -> ultimele 25, toate valide', list.json?.all_valid === true && list.json?.count > 0 && list.json?.count <= 25, JSON.stringify({ all: list.json?.all_valid, n: list.json?.count }));
+  ok('application_id invalid -> 400', (await call(op, 'GET', '/backoffice/ledger?application_id=abc')).status === 400);
+  const rv = await call(op, 'GET', '/backoffice/reviews');
+  const revI = rv.json?.reviews?.find((x) => x.application?.application_id === idI);
+  const revM = rv.json?.reviews?.find((x) => x.application?.application_id === idM);
+  ok('coada -> contine Ioana (client, cu mesaj) si Mihai (motor)', revI?.requested_by === 'customer' && !!revI?.customer_message && revM?.requested_by === 'engine', JSON.stringify(rv.json?.reviews?.length));
+  const rsI = await call(op, 'POST', '/backoffice/reviews', { review_id: revI?.review_id, status: 'rejected', note: 'Venitul nou nu e dovedit inca.' });
+  ok('respinge Ioana -> cererea rejected', rsI.json?.application_status === 'rejected', JSON.stringify(rsI.json));
+  ok('a doua rezolvare -> 409', (await call(op, 'POST', '/backoffice/reviews', { review_id: revI?.review_id, status: 'approved' })).status === 409);
+  const rsM = await call(op, 'POST', '/backoffice/reviews', { review_id: revM?.review_id, status: 'approved', note: 'Intarzieri izolate.' });
+  ok('aproba Mihai -> cererea approved', rsM.json?.application_status === 'approved', JSON.stringify(rsM.json));
+  const stM = await call(mihai, 'GET', `/applications/${idM}`);
+  ok('starea lui Mihai dupa aprobare -> approved, pasul secci, revizuire approved', stM.json?.status === 'approved' && stM.json?.next_step === 'secci' && stM.json?.review?.status === 'approved', JSON.stringify(stM.json));
+  const stI2 = await call(ioana, 'GET', `/applications/${idI}`);
+  ok('starea Ioanei dupa respingere -> rejected + consiliere', stI2.json?.next_step === 'rejected' && !!stI2.json?.debt_advice, JSON.stringify(stI2.json));
+  ok('Mihai vede acum SECCI -> 200', (await call(mihai, 'GET', `/applications/${idM}/secci`)).status === 200);
+  for (let i = 0; i < 3; i++) await call(mihai, 'POST', `/applications/${idM}/otp`);
+  ok('al 4-lea cod in 10 minute -> 429 OTP_RATE_LIMIT', (await call(mihai, 'POST', `/applications/${idM}/otp`)).json?.error?.code === 'OTP_RATE_LIMIT');
+  const lgM = await call(op, 'GET', `/backoffice/ledger?application_id=${idM}`);
+  ok('jurnalul lui Mihai -> valid, are human_review_resolved', lgM.json?.valid === true && lgM.json?.entries?.some((e) => e.event === 'human_review_resolved'));
+}
+
 console.log(`\nRezultat: ${pass} OK, ${fail} FAIL`);
-console.log(`Cererea Anei: ${id}`);
+console.log(`Cererea Anei: ${id} | contract: ${agrId}`);

@@ -6,6 +6,9 @@ import { cors } from 'hono/cors';
 import { requireUser, type Env } from './lib/auth.ts';
 import { ApiError } from './lib/http.ts';
 import customer from './routes/customer.ts';
+import signing from './routes/signing.ts';
+import agreements from './routes/agreements.ts';
+import backoffice from './routes/backoffice.ts';
 
 // CORS: doar originile permise. ALLOWED_ORIGINS = lista separata prin virgula (secret al functiei).
 const ALLOWED = (Deno.env.get('ALLOWED_ORIGINS') ?? 'http://localhost:5173,http://127.0.0.1:5173')
@@ -23,13 +26,16 @@ app.use('*', cors({
 app.get('/health', (c) => c.json({ ok: true }));
 
 app.use('*', requireUser);
-app.route('/', customer);
+app.route('/', customer);   // 1-6
+app.route('/', signing);    // 7-11 (revizuire, SECCI, OTP, semnare)
+app.route('/', agreements); // 12-14 (contract, retragere, sari la ziua N)
+app.route('/backoffice', backoffice); // 15-16, doar operator (middleware-ul ramane sub /backoffice/*)
 
 app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: 'Ruta nu exista.' } }, 404));
 
 app.onError((err, c) => {
   if (err instanceof ApiError) {
-    return c.json({ error: { code: err.code, message: err.message, ...(err.fields ? { fields: err.fields } : {}) } }, err.status as 400);
+    return c.json({ error: { code: err.code, message: err.message, ...(err.fields ? { fields: err.fields } : {}) } }, err.status as 400 | 401 | 403 | 404 | 409 | 429 | 503);
   }
   // Fara date personale in loguri: doar un id de eroare si mesajul tehnic
   const id = crypto.randomUUID();

@@ -16,6 +16,9 @@ export const RESIDUAL_REVIEW_LEI = 500;
 export const LATE_BILLS_REVIEW = 2;
 
 export type Decision = 'approved' | 'manual_review' | 'rejected';
+
+/** Trimiterea la consiliere la respingere (art. 18(9)). */
+export const DEBT_ADVICE = { text: 'Poti cere gratuit sfaturi despre datorii.', contact: 'serviciu de consiliere (demo)' } as const;
 export type Reason = { code: string; text: string };
 
 export type AffordabilityInput = {
@@ -124,9 +127,7 @@ export function assessAffordability(i: AffordabilityInput): AffordabilityResult 
     reasons,
     metrics: { dti_pct: dti, residual_lei: residual, late_bills_12m: i.late_bills_12m, other_installments_used_lei: other },
     human_review_available: true,
-    debt_advice: decision === 'rejected'
-      ? { text: 'Poti cere gratuit sfaturi despre datorii.', contact: 'serviciu de consiliere (demo)' }
-      : null,
+    debt_advice: decision === 'rejected' ? DEBT_ADVICE : null,
     engine_version: ENGINE_VERSION,
   };
 }
