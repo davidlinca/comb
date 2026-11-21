@@ -1,163 +1,193 @@
+// Pasul 4 · Oferta: informațiile precontractuale (SECCI) pe un ecran. Fără cronometre, fără presiune.
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { api, api2, ApiError, type Secci } from '../lib/api';
+import { createPortal } from 'react-dom';
+import { useLoaderData, useNavigate, useNavigation, useOutletContext } from 'react-router-dom';
+import { api2, ApiError, type Secci } from '../lib/api';
 import { date, lei, monthYear, pct } from '../lib/format';
-import { Btn, ErrorNote, Sheet, SheetHeader } from '../components/ui';
-import { IconArrow, IconDoc, IconMail, IconUndo, IconX } from '../components/Icons';
-import Backdrop from '../components/Backdrop';
+import { useCountUp, useFocusOnMount, useMounted } from '../lib/motion';
+import { useToast } from '../lib/toast';
+import type { LoaderData, offerLoader } from '../loaders';
+import type { SheetCtx } from '../components/SheetShell';
+import { IconFile, IconMail, IconTick, IconUndo } from '../components/Icons';
+import {
+  Btn, Card, ErrorNote, Notice, RoundBtn, Row, Rows, SheetBody, SheetFoot, SheetHeader, SheetTitle, SheetTop, Spinner, TwoButtons, cx,
+} from '../components/ui';
 
-// Ecranul 5: informațiile precontractuale (SECCI) pe un ecran. Fără cronometre, fără presiune.
 export default function OfferSheet() {
-  const { id = '' } = useParams();
+  const { app, secci } = useLoaderData() as LoaderData<typeof offerLoader>;
+  const id = app.application_id;
+  const { close } = useOutletContext<SheetCtx>();
   const nav = useNavigate();
-  const [secci, setSecci] = useState<Secci | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const navigation = useNavigation();
+  const toast = useToast();
   const [full, setFull] = useState(false);
   const [mail, setMail] = useState<'idle' | 'busy' | 'sent'>('idle');
+  const [error, setError] = useState<string | null>(null);
   const opened = useRef(false);
-  const shownAt = useRef<number | null>(null);
+  const fullBtn = useRef<HTMLButtonElement>(null);
+  const mounted = useMounted(120);
 
+  // dovada pentru jurnal: cât a stat pe ecran și dacă a deschis formularul complet
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const a = await api.application(id);
-        if (a.agreement_id) { nav(`/c/${a.agreement_id}`, { replace: true }); return; }
-        if (a.next_step !== 'secci' && a.next_step !== 'sign') { nav(`/a/${id}/rezultat`, { replace: true }); return; }
-        const s = await api2.secci(id);
-        if (!alive) return;
-        setSecci(s); shownAt.current = Date.now();
-      } catch (e) { if (alive) setError(e instanceof ApiError ? e.message : 'Oferta nu s-a putut încărca.'); }
-    })();
-    return () => {
-      alive = false;
-      // dovada pentru jurnal: cât a stat pe ecran și dacă a deschis formularul complet
-      if (shownAt.current) {
-        const ms = Date.now() - shownAt.current; shownAt.current = null;
-        api2.secciViewed(id, { time_on_screen_ms: ms, details_opened: opened.current }).catch(() => {});
-      }
-    };
-  }, [id, nav]);
+    const shownAt = Date.now();
+    return () => { api2.secciViewed(id, { time_on_screen_ms: Date.now() - shownAt, details_opened: opened.current }).catch(() => {}); };
+  }, [id]);
 
   async function sendMail() {
-    setMail('busy');
-    try { await api2.secciEmail(id); setMail('sent'); } catch (e) { setMail('idle'); setError(e instanceof ApiError ? e.message : 'Emailul nu a putut fi trimis.'); }
+    setMail('busy'); setError(null);
+    try { await api2.secciEmail(id); setMail('sent'); toast('Formularul a fost trimis pe email (simulat).'); }
+    catch (e) { setMail('idle'); setError(e instanceof ApiError ? e.message : 'Emailul nu a putut fi trimis.'); }
   }
 
-  if (!secci) {
-    return (<><Backdrop /><Sheet label="Oferta ta"><SheetHeader step={3} onClose={() => nav('/shop')} />
-      {error ? <ErrorNote>{error}</ErrorNote> : <p className="py-10 text-center text-[15px] text-muted">Se încarcă oferta…</p>}</Sheet></>);
-  }
   const k = secci.key;
+  const total = useCountUp(k.total_payable_lei, 900);
   const first = secci.schedule[0]?.due_date, last = secci.schedule[secci.schedule.length - 1]?.due_date;
+  const going = navigation.location?.pathname === `/a/${id}/confirma`;
 
   return (
     <>
-      <Backdrop />
-      <Sheet label="Oferta ta" tall>
-        <SheetHeader step={3} onClose={() => nav('/shop')} />
-        <h2 className="text-[26px] font-bold tracking-tight">Oferta ta</h2>
+      <SheetTop><SheetHeader step={3} progress={3.25} onClose={close} /></SheetTop>
+      <SheetBody>
+        <SheetTitle>Oferta ta</SheetTitle>
 
-        <section className="flex flex-col gap-3 rounded-3xl border border-brand/70 p-4" aria-label="Total de plată">
-          <span className="text-[14px] text-muted">Total de plată</span>
-          <span className="text-[38px] font-bold leading-none tracking-tight text-brand">{lei(k.total_payable_lei)}</span>
-          <div className="mt-2 flex items-baseline justify-between gap-3 text-[15px]">
-            <span className="font-semibold">{k.installments} × {lei(k.installment_lei)}</span>
-            {k.last_installment_lei != null && k.last_installment_lei !== k.installment_lei && <span className="text-[13px] text-muted">Ultima rată: {lei(k.last_installment_lei)}</span>}
+        <Card accent className="flex flex-col px-4 pb-4 pt-3.5">
+          <span className="text-[14px] font-medium">Total de plată</span>
+          <span className="tabular mt-0.5 text-[36px] font-bold leading-[1.1] tracking-[-0.02em] text-brand">
+            <span aria-hidden>{lei(total)}</span><span className="sr-only">{lei(k.total_payable_lei)}</span>
+          </span>
+          <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-3 text-[15px]">
+            <span className="tabular font-semibold">{k.installments} × {lei(k.installment_lei)}</span>
+            {k.last_installment_lei != null && k.last_installment_lei !== k.installment_lei && (
+              <span className="tabular text-[14px] text-muted">Ultima rată: {lei(k.last_installment_lei)}</span>
+            )}
           </div>
           {first && last && (<>
-            <div className="h-1.5 rounded-full bg-graphite" aria-hidden><div className="h-full w-[6%] rounded-full bg-brand" /></div>
-            <div className="flex justify-between text-[13px] text-muted"><span>{monthYear(first)}</span><span>{monthYear(last)}</span></div>
+            <div className="mt-2.5 h-[5px] overflow-hidden rounded-full bg-graphite" aria-hidden>
+              <div className="h-full rounded-full bg-brand transition-[width] duration-1000 ease-out-expo" style={{ width: mounted ? `${Math.max(4, 100 / k.installments)}%` : '0%' }} />
+            </div>
+            <div className="mt-1.5 flex justify-between text-[13px] text-muted">
+              <span><span className="sr-only">Prima rată: </span>{monthYear(first)}</span>
+              <span><span className="sr-only">Ultima rată: </span>{monthYear(last)}</span>
+            </div>
           </>)}
-        </section>
+        </Card>
 
-        <dl className="px-1 text-[15px]">
+        <Rows className="-my-1 animate-fade-up [animation-delay:120ms]">
           <Row k="Suma finanțată" v={lei(k.total_credit_lei)} />
           <Row k="Costul total al creditului" v={lei(k.total_cost_lei)} />
           <Row k="DAE" v={pct(k.apr_pct)} />
-          <Row k={`Dobândă anuală ${k.rate_type}`} v={pct(k.nominal_rate_pct)} last />
-        </dl>
+          <Row k={`Dobândă anuală ${k.rate_type}`} v={pct(k.nominal_rate_pct)} />
+        </Rows>
 
-        <p className="flex items-center gap-3 rounded-2xl border border-brand/70 px-4 py-3.5 text-[15px]">
-          <IconUndo className="size-5 shrink-0 text-brand" />Te poți retrage în {k.withdrawal_days} zile, fără motiv.
-        </p>
+        <Notice accent icon={<IconUndo className="size-5" />} className="items-center animate-fade-up [animation-delay:180ms]">
+          <p className="text-[15px]">Te poți retrage în {k.withdrawal_days} zile, fără motiv.</p>
+        </Notice>
 
-        <div className="grid grid-cols-2 gap-2.5">
-          <button type="button" onClick={() => { opened.current = true; setFull(true); }}
-            className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-line text-[15px] font-semibold hover:bg-field">
-            <IconDoc className="size-5 text-brand" />Formular complet
-          </button>
-          <button type="button" onClick={sendMail} disabled={mail !== 'idle'} aria-live="polite"
-            className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-line text-[15px] font-semibold hover:bg-field disabled:opacity-80">
-            <IconMail className="size-5 text-brand" />{mail === 'sent' ? 'Trimis pe email' : mail === 'busy' ? 'Se trimite…' : 'Trimite pe email'}
-          </button>
+        <div className="grid grid-cols-2 gap-2 animate-fade-up [animation-delay:220ms]">
+          <TileBtn ref={fullBtn} icon={<IconFile className="size-5" />} onClick={() => { opened.current = true; setFull(true); }}>Formular complet</TileBtn>
+          <TileBtn icon={mail === 'sent' ? <IconTick className="size-5" animate /> : mail === 'busy' ? <Spinner className="size-5" /> : <IconMail className="size-5" />}
+            onClick={sendMail} disabled={mail !== 'idle'} busy={mail === 'busy'}>
+            {mail === 'sent' ? 'Trimis pe email' : 'Trimite pe email'}
+          </TileBtn>
         </div>
-
         {error && <ErrorNote>{error}</ErrorNote>}
-        <p className="mt-auto text-center text-[14px] text-muted">Nu există limită de timp pentru decizie.</p>
-        <div className="grid grid-cols-2 gap-2.5">
-          <Btn variant="secondary" onClick={() => nav('/shop')}>Nu acum</Btn>
-          <Btn onClick={() => nav(`/a/${id}/confirma`)}><span className="inline-flex items-center gap-1.5">Continuă <IconArrow /></span></Btn>
-        </div>
-      </Sheet>
+      </SheetBody>
+      <SheetFoot className="flex flex-col gap-3">
+        <p className="text-center text-[14px] text-muted">Nu există limită de timp pentru decizie.</p>
+        <TwoButtons>
+          <Btn variant="secondary" onClick={close}>Nu acum</Btn>
+          <Btn onClick={() => nav(`/a/${id}/confirma`, { viewTransition: true })} loading={going}>Continuă <span aria-hidden>→</span></Btn>
+        </TwoButtons>
+      </SheetFoot>
 
-      {full && <FullSecci s={secci} onClose={() => setFull(false)} first={first} />}
+      {full && <SecciDialog s={secci} first={first} opener={fullBtn} onClose={() => setFull(false)} />}
     </>
   );
 }
 
-function Row({ k, v, last }: { k: string; v: string; last?: boolean }) {
+function TileBtn({ icon, children, onClick, disabled, busy, ref }: {
+  icon: React.ReactNode; children: React.ReactNode; onClick: () => void; disabled?: boolean; busy?: boolean; ref?: React.Ref<HTMLButtonElement>;
+}) {
   return (
-    <div className={`flex justify-between gap-3 py-3 ${last ? '' : 'border-b border-line'}`}>
-      <dt className="text-muted">{k}</dt><dd className="font-semibold">{v}</dd>
-    </div>
+    <button ref={ref} type="button" onClick={onClick} disabled={disabled} aria-busy={busy || undefined}
+      className="flex h-[52px] items-center justify-center gap-2 whitespace-nowrap rounded-[16px] border border-stroke bg-card px-2.5 text-[14px] font-semibold transition-[background-color,border-color,transform] duration-200 hover:border-graphite hover:bg-card-hover active:scale-[0.97] disabled:hover:bg-card">
+      <span className="text-brand">{icon}</span>{children}
+    </button>
   );
 }
 
-function FullSecci({ s, onClose, first }: { s: Secci; onClose: () => void; first?: string }) {
+/** Formularul complet (SECCI), peste tot ecranul. Escape și X îl închid; restul ecranului devine inert. */
+function SecciDialog({ s, first, opener, onClose }: { s: Secci; first?: string; opener: React.RefObject<HTMLButtonElement | null>; onClose: () => void }) {
   const k = s.key;
-  return (
-    <div className="absolute inset-0 z-20">
-      <div className="absolute inset-0 bg-black/60" aria-hidden onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-label="Formularul complet de informare (SECCI)"
-        className="sheet-in absolute inset-x-2 bottom-2 top-10 flex flex-col overflow-hidden rounded-[32px] bg-sheet text-paper">
-        <div className="flex items-center justify-between border-b border-line px-5 py-4">
-          <h2 className="text-[18px] font-bold">Formular complet (SECCI)</h2>
-          <button type="button" onClick={onClose} aria-label="Închide" className="grid size-10 place-items-center rounded-full border border-line hover:bg-field"><IconX /></button>
+  const title = useFocusOnMount<HTMLHeadingElement>();
+  const [closing, setClosing] = useState(false);
+  const done = () => { setClosing(true); setTimeout(onClose, 220); };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); done(); } };
+    window.addEventListener('keydown', onKey, true);
+    const sheet = document.querySelector<HTMLElement>('[aria-labelledby="sheet-title"]');
+    sheet?.setAttribute('inert', '');
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      sheet?.removeAttribute('inert');
+      opener.current?.focus({ preventScroll: true }); // focusul revine pe „Formular complet”
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const host = document.querySelector('[data-screen]') ?? document.body;
+  return createPortal(
+    <div className="absolute inset-0 z-50 flex flex-col justify-end">
+      <div aria-hidden onClick={done} className={cx('absolute inset-0 bg-black/55 transition-opacity duration-200', closing ? 'opacity-0' : 'animate-fade-in')} />
+      <div role="dialog" aria-modal="true" aria-labelledby="secci-title"
+        className={cx('on-dark relative mx-2.5 mb-[max(10px,var(--safe-bottom))] mt-[calc(var(--safe-top)+8px)] flex min-h-0 flex-1 flex-col overflow-hidden rounded-[36px] bg-sheet text-paper',
+          closing ? 'translate-y-8 opacity-0 transition-[transform,opacity] duration-200 ease-in' : 'animate-sheet-up')}>
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stroke px-5 py-3.5">
+          <h2 id="secci-title" ref={title} tabIndex={-1} className="text-[18px] font-bold outline-none">Formular complet (SECCI)</h2>
+          <RoundBtn kind="close" onClick={done} />
         </div>
-        <div className="flex flex-col gap-5 overflow-y-auto px-5 py-4 text-[15px]">
+        <div tabIndex={0} role="region" aria-label="Conținutul formularului SECCI" className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-5 py-5 text-[15px] focus-visible:outline-offset-[-4px]">
           <Block title="Creditor">{s.creditor.name}<br /><span className="text-muted">{s.creditor.address}</span></Block>
           <Block title="Intermediar">{s.intermediary.name}</Block>
           <Block title="Creditul">
-            <dl>
+            <Rows>
               <Row k="Suma finanțată" v={lei(k.total_credit_lei)} />
               <Row k="Număr de rate" v={String(k.installments)} />
               <Row k="Rată lunară" v={lei(k.installment_lei)} />
               {k.last_installment_lei != null && <Row k="Ultima rată" v={lei(k.last_installment_lei)} />}
               <Row k="Costul total al creditului" v={lei(k.total_cost_lei)} />
-              <Row k="Total de plată" v={lei(k.total_payable_lei)} />
+              <Row k="Total de plată" v={lei(k.total_payable_lei)} strong />
               <Row k="DAE" v={pct(k.apr_pct)} />
               <Row k={`Dobândă anuală (${k.rate_type})`} v={pct(k.nominal_rate_pct)} />
-              {first && <Row k="Prima rată" v={date(first)} last />}
-            </dl>
+              {first && <Row k="Prima rată" v={date(first)} />}
+            </Rows>
           </Block>
           <Block title="Dreptul de retragere">Te poți retrage în {k.withdrawal_days} zile de la semnare, fără să dai un motiv.</Block>
           <Block title="Întârzieri la plată">{s.late_payment}</Block>
           <Block title="Rambursare anticipată">{s.early_repayment}</Block>
           <Block title="Graficul de rate">
-            <table className="w-full text-[14px]">
-              <thead><tr className="text-left text-muted"><th className="py-1.5 font-medium">Nr.</th><th className="py-1.5 font-medium">Scadență</th><th className="py-1.5 text-right font-medium">Suma</th></tr></thead>
+            <table className="tabular w-full text-[14px]">
+              <caption className="sr-only">Graficul de rate</caption>
+              <thead><tr className="text-left text-muted"><th scope="col" className="py-1.5 font-medium">Nr.</th><th scope="col" className="py-1.5 font-medium">Scadență</th><th scope="col" className="py-1.5 text-right font-medium">Suma</th></tr></thead>
               <tbody>{s.schedule.map((r) => (
-                <tr key={r.n} className="border-t border-line"><td className="py-1.5">{r.n}</td><td className="py-1.5">{date(r.due_date)}</td><td className="py-1.5 text-right">{lei(r.amount_lei)}</td></tr>
+                <tr key={r.n} className="border-t border-stroke"><td className="py-2">{r.n}</td><td className="py-2">{date(r.due_date)}</td><td className="py-2 text-right">{lei(r.amount_lei)}</td></tr>
               ))}</tbody>
             </table>
           </Block>
           <p className="text-[13px] text-muted">Versiunea formularului: {s.secci_version}</p>
         </div>
       </div>
-    </div>
+    </div>,
+    host,
   );
 }
+
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section><h3 className="mb-1.5 text-[13px] font-semibold uppercase tracking-wide text-muted">{title}</h3><div>{children}</div></section>;
+  return (
+    <section>
+      <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">{title}</h3>
+      <div>{children}</div>
+    </section>
+  );
 }

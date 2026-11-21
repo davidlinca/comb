@@ -57,6 +57,12 @@ export type Application = {
   agreement_id: string | null;
 };
 
+/** 6c (contract v0.5): ultima cerere neîncheiată, pentru cardul „Cererea ta” din magazin. */
+export type CurrentApplication = {
+  application_id: string; status: string; created_at: string; next_step: NextStep; sku: string; device_name: string; product_id: string;
+  term_months: number; installment_lei: number; installments: number; total_payable_lei: number; agreement_id: string | null; agreement_status: string | null;
+};
+
 export const api = {
   me: () => request<Me>('GET', '/me'),
   catalog: () => request<Catalog>('GET', '/catalog'),
@@ -64,6 +70,7 @@ export const api = {
   createApplication: (b: { sku: string; product_id: string; term_months: number; shown: { ad_warning: boolean; personalised_label: boolean } }) =>
     request<{ application_id: string; status: string; quote: Quote }>('POST', '/applications', b),
   application: (id: string) => request<Application>('GET', `/applications/${id}`),
+  current: () => request<{ application: CurrentApplication | null }>('GET', '/applications/current'),
   consents: (id: string, b: { billing_history: boolean; bank_data: boolean; privacy_notice_read: boolean }) =>
     request<{ ok: true }>('POST', `/applications/${id}/consents`, b),
   assessment: (id: string, b: { net_income_lei: number; monthly_expenses_lei: number; other_installments_lei: number }) =>
