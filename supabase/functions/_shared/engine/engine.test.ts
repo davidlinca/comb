@@ -210,4 +210,7 @@ test('Suma la retragere: credit + dobanda pe zilele folosite, returnare in 30 de
   assert.equal(trei.amount_to_return_lei, 2201.69);
   const zero = withdrawalAmount(399, 0, SIGN, '2026-11-30');
   assert.equal(zero.amount_to_return_lei, 399);
+  assert.equal(zero.interest_lei, 0);
+  assert.equal(zero.text, 'Returnezi suma primita, fara dobanda, in maximum 30 de zile.'); // nu pomeni dobanda la 0%
+  assert.match(trei.text, /dobanda pentru 3 zile/);
 });
