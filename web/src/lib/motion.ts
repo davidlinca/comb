@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { useLocation, useNavigate, type NavigateFunction } from 'react-router-dom';
 
 export const reducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -47,13 +48,101 @@ export function useFocusOnMount<T extends HTMLElement>() {
 
 export const vibrate = (ms = 12) => { try { navigator.vibrate?.(ms); } catch { /* nu e suportat */ } };
 
-/** Marchează tipul următoarei tranziții (deschidere / închidere de sheet) pentru CSS-ul view-transition. */
-export function markTransition(kind: 'open' | 'close') {
-  const el = document.documentElement;
-  el.dataset.vt = kind;
-  window.setTimeout(() => { if (el.dataset.vt === kind) delete el.dataset.vt; }, 4000); // plasă de siguranță
+/* ---------------- deschiderea și închiderea sheet-urilor ----------------
+   Între pași folosim View Transitions (sheet-ul își schimbă înălțimea, conținutul se schimbă în el).
+   La deschidere și la închidere NU: acolo sheet-ul urcă / coboară opac prin CSS, tăiat de marginea
+   ecranului (în rama de pe desktop, imaginile unei view transition nu sunt tăiate de ramă). */
+
+const SHEET_PATH = /^\/(shop\/[^/]+|a\/|c\/)/;
+export const hasSheet = (pathname: string) => SHEET_PATH.test(pathname);
+
+type RouterLike = { state: { location: { pathname: string } }; subscribe: (fn: (s: { location: { pathname: string } }) => void) => () => void };
+
+/**
+ * Plasă de siguranță: routerul poate porni singur o view transition la Înapoi / Înainte în browser
+ * (dacă navigarea inițială a avut una). Când asta deschide sau închide un sheet, marcăm <html data-vt>,
+ * iar CSS-ul face tranziția invizibilă: animația o dau sheet-ul (sheet-up) și copia lui care coboară.
+ * Rulează înaintea abonamentului RouterProvider, deci marcajul există când pornește tranziția.
+ */
+let committed = typeof window !== 'undefined' ? window.location.pathname : '/';
+/** Ruta afișată acum (nu cea spre care se navighează; la Înapoi, URL-ul se schimbă înainte de randare). */
+export const committedPath = () => committed;
+
+export function installTransitionMarks(router: RouterLike) {
+  let last = router.state.location.pathname;
+  committed = last;
+  let token = 0;
+  return router.subscribe((s) => {
+    const p = s.location.pathname;
+    if (p === last) return;
+    const kind = hasSheet(last) && !hasSheet(p) ? 'close' : !hasSheet(last) && hasSheet(p) ? 'open' : null;
+    last = p;
+    committed = p;
+    const el = document.documentElement;
+    const t = ++token;
+    if (kind) el.dataset.vt = kind; else delete el.dataset.vt;
+    window.setTimeout(() => { if (t === token) delete el.dataset.vt; }, 700);
+  });
 }
-/** Șterge marcajul după ce tranziția s-a terminat (apelat când navigarea revine la idle). */
-export function clearTransitionMark() {
-  window.setTimeout(() => { delete document.documentElement.dataset.vt; }, 650);
+
+/**
+ * Animația de ieșire pentru un element care tocmai e scos din pagină (sheet-ul care se închide):
+ * o copie statică, inertă, rămâne pe loc cât rulează animația CSS a clasei `className`, apoi dispare.
+ * Merge la fel pentru X, „Nu acum”, Înapoi în browser sau back pe Android. Se apelează din cleanup-ul
+ * unui useLayoutEffect, care rulează înainte ca React să scoată nodul din DOM.
+ */
+export function ghostExit(node: HTMLElement, className: string) {
+  const parent = node.parentNode;
+  if (!parent || !node.isConnected || reducedMotion()) return;
+  const ghost = node.cloneNode(true) as HTMLElement;
+  const src = node.querySelectorAll<HTMLElement>('*');
+  const dst = ghost.querySelectorAll<HTMLElement>('*');
+  for (const el of [ghost, ...dst]) { el.removeAttribute('id'); el.style.viewTransitionName = ''; }
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.inert = true;
+  ghost.classList.add(className);
+  parent.insertBefore(ghost, node.nextSibling);
+  // copia pornește cu derularea și valorile originalului
+  src.forEach((el, i) => {
+    if (el.scrollTop) dst[i].scrollTop = el.scrollTop;
+    if (el instanceof HTMLInputElement) (dst[i] as HTMLInputElement).value = el.value;
+  });
+  const remove = () => ghost.remove();
+  ghost.addEventListener('animationend', (e) => { if ((e.target as HTMLElement).dataset.ghostEnd !== undefined) remove(); });
+  window.setTimeout(remove, 700);
+  // StrictMode (dev) simulează un unmount fără să scoată nodul: atunci copia nu e necesară
+  queueMicrotask(() => { if (node.isConnected) remove(); });
+}
+
+/* ---------------- istoricul fluxului ---------------- */
+
+const histIdx = () => (window.history.state as { idx?: number } | null)?.idx ?? null;
+let origin: number | null = null; // poziția din istoric a magazinului din care s-a deschis fluxul
+
+/** Ținem minte de unde s-a deschis fluxul, ca închiderea să ne întoarcă exact acolo în istoric. */
+export function rememberOrigin() { origin = histIdx(); }
+
+/**
+ * Închiderea fluxului: ne întoarcem în istoric la magazinul din care am plecat (Înapoi nu mai
+ * redeschide sheet-ul închis). Fără un punct de plecare cunoscut (link direct, refresh), înlocuim
+ * intrarea curentă cu magazinul.
+ */
+export function closeTo(nav: NavigateFunction) {
+  const idx = histIdx();
+  if (origin != null && idx != null && idx > origin) { const d = origin - idx; origin = null; nav(d); }
+  else { origin = null; nav('/shop', { replace: true }); }
+}
+
+/**
+ * „Înapoi” la pasul anterior: dacă am ajuns aici chiar de acolo (state.from), ne întoarcem în istoric,
+ * deci Înainte / Înapoi din browser rămân coerente și nu se adună bucle; altfel (link direct, refresh)
+ * înlocuim pasul curent cu ținta. Ambele variante au tranziție.
+ */
+export function useStepBack(target: string) {
+  const nav = useNavigate();
+  const { state } = useLocation();
+  return () => {
+    if ((state as { from?: string } | null)?.from === target) nav(-1);
+    else nav(target, { replace: true, viewTransition: true });
+  };
 }

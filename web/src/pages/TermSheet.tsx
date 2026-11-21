@@ -1,6 +1,6 @@
 // Pasul 1 · Perioada. Nimic preselectat; costul complet apare imediat după alegere.
 import { useState } from 'react';
-import { useLoaderData, useNavigate, useOutletContext } from 'react-router-dom';
+import { useLoaderData, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { lei, pct } from '../lib/format';
 import type { LoaderData, termLoader } from '../loaders';
@@ -15,6 +15,7 @@ export default function TermSheet() {
   const { catalog, device, product, quotes } = useLoaderData() as LoaderData<typeof termLoader>;
   const { close } = useOutletContext<SheetCtx>();
   const nav = useNavigate();
+  const { pathname } = useLocation();
   const [term, setTerm] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +31,7 @@ export default function TermSheet() {
         // dovezi pentru jurnal: true doar pentru ce chiar s-a afișat pe ecran
         shown: { ad_warning: true, personalised_label: personalisedShown },
       });
-      nav(`/a/${res.application_id}/buget`, { viewTransition: true });
+      nav(`/a/${res.application_id}/buget`, { viewTransition: true, state: { from: pathname } });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Cererea nu a putut fi creată.');
       setBusy(false);

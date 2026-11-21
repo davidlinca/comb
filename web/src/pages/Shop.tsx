@@ -1,12 +1,12 @@
 // Magazinul din aplicația Telvia. Rămâne afișat (inert) sub sheet-urile fluxului de rate.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Outlet, useLoaderData, useMatches, useNavigate, useNavigation, useRouteLoaderData } from 'react-router-dom';
 import type { Catalog, CurrentApplication, Device } from '../lib/api';
 import { lei } from '../lib/format';
 import { signOut } from '../lib/session';
 import { useToast } from '../lib/toast';
-import { markTransition } from '../lib/motion';
-import type { LoaderData, shopLoader } from '../loaders';
+import { rememberOrigin } from '../lib/motion';
+import type { currentLoader, LoaderData, shopLoader } from '../loaders';
 import { IconAlert, IconArrowRight, IconBag, IconChevronDown } from '../components/Icons';
 import { Spinner, cx } from '../components/ui';
 
@@ -18,23 +18,48 @@ export default function Shop() {
   const sheetOpen = useMatches().some((m) => typeof (m.handle as { step?: number } | undefined)?.step === 'number');
   const pendingSku = navigation.location?.pathname.match(/^\/shop\/([^/]+)$/)?.[1];
   const [whyOpen, setWhyOpen] = useState(false);
-  const lastSku = useRef<string | null>(null);
+  const trigger = useRef<HTMLElement | null>(null);
   const wasOpen = useRef(sheetOpen);
 
-  // la închiderea sheet-ului, focusul revine pe butonul care l-a deschis
+  // la închiderea sheet-ului, focusul revine pe butonul care l-a deschis (produsul sau cardul „Cererea ta”)
   useEffect(() => {
-    if (wasOpen.current && !sheetOpen && lastSku.current) {
-      document.querySelector<HTMLButtonElement>(`[data-installments="${lastSku.current}"]`)?.focus({ preventScroll: false });
-    }
+    if (wasOpen.current && !sheetOpen && trigger.current?.isConnected) trigger.current.focus({ preventScroll: true });
     wasOpen.current = sheetOpen;
   }, [sheetOpen]);
-  // cardul „Cererea ta”: datele vin la fiecare întoarcere în magazin; rămân afișate și sub sheet
-  const live = useRouteLoaderData('shop-home') as CurrentApplication | null | undefined;
-  const [current, setCurrent] = useState<CurrentApplication | null>(live ?? null);
-  useEffect(() => { if (live !== undefined) setCurrent(live); }, [live]);
-  const goTo = (to: string) => { markTransition('open'); nav(to, { viewTransition: true }); };
-
-  const openTerms = (d: Device) => { lastSku.current = d.sku; markTransition('open'); nav(`/shop/${d.sku}`, { viewTransition: true }); };
+  // cardul „Cererea ta”: se reîmprospătează la fiecare întoarcere în magazin, fără să întârzie închiderea
+  // sheet-ului (loaderul nu așteaptă răspunsul); între timp rămâne afișată varianta anterioară
+  const live = useRouteLoaderData('shop-home') as LoaderData<typeof currentLoader> | undefined;
+  const [current, setCurrent] = useState<CurrentApplication | null>(live?.initial ?? null);
+  useEffect(() => {
+    if (!live) return;
+    if (live.initial !== undefined) { setCurrent(live.initial); return; }
+    let alive = true;
+    void live.current.then((a) => { if (alive) setCurrent(a); });
+    return () => { alive = false; };
+  }, [live]);
+  // cardul apare / dispare cu înălțime animată (produsele alunecă, nu sar); păstrăm ultimul conținut cât se strânge
+  const [shown, setShown] = useState(current);
+  if (current && current !== shown) setShown(current);
+  // dacă locul cardului e deasupra zonei vizibile (ai derulat), conținutul rămâne pe loc: compensăm derularea
+  const slot = useRef<HTMLDivElement>(null);
+  const slotH = useRef(0);
+  const hasCard = !!current;
+  useLayoutEffect(() => {
+    const el = slot.current, sc = el?.closest<HTMLElement>('.overflow-y-auto');
+    if (!el || !sc) return;
+    const before = slotH.current;
+    const header = sc.querySelector('header')?.offsetHeight ?? 0;
+    if (el.getBoundingClientRect().top < sc.getBoundingClientRect().top + header) {
+      el.style.transition = 'none';
+      const after = el.offsetHeight; // fără tranziție: înălțimea finală, imediat
+      sc.scrollTop += after - before;
+      requestAnimationFrame(() => { el.style.transition = ''; });
+    }
+    slotH.current = hasCard ? (el.firstElementChild as HTMLElement | null)?.scrollHeight ?? 0 : 0;
+  }, [hasCard]);
+  // deschiderea unui sheet: fără view transition (sheet-ul urcă prin CSS), cu punctul de întoarcere reținut
+  const open = (to: string, from: HTMLElement) => { trigger.current = from; rememberOrigin(); nav(to); };
+  const openTerms = (d: Device, from: HTMLElement) => open(`/shop/${d.sku}`, from);
 
   const personalised = catalog.personalised.is_personalised && !!catalog.personalised.text;
   const phones = catalog.devices.filter((d) => d.category === 'phone');
@@ -44,12 +69,13 @@ export default function Shop() {
   return (
     <>
       <div inert={sheetOpen} className="absolute inset-0 flex flex-col bg-paper">
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* fără ancorarea automată a browserului: o facem noi pentru cardul „Cererea ta” (vezi mai sus) */}
+        <div className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]">
           <header className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-paper/90 px-5 pb-3 pt-[calc(var(--safe-top)+10px)] backdrop-blur-md">
             <span className="text-[22px] font-extrabold tracking-[-0.04em]">telvia</span>
             <span className="flex items-center gap-2">
               <span aria-hidden className="grid size-9 place-items-center rounded-full bg-brand text-[15px] font-bold">{first[0]}</span>
-              <button type="button" onClick={async () => { await signOut(); nav('/login', { replace: true }); }}
+              <button type="button" onClick={async () => { await signOut(); nav('/login', { replace: true, viewTransition: true }); }}
                 className="h-11 rounded-full px-3.5 text-[14px] font-semibold text-ink transition-colors hover:bg-mist">
                 Ieși <span className="sr-only">din contul {me.display_name}</span>
               </button>
@@ -77,7 +103,9 @@ export default function Shop() {
               </section>
             )}
 
-            {current && <CurrentCard a={current} onOpen={goTo} pendingPath={navigation.location?.pathname} />}
+            <div ref={slot} className="reveal -mt-5" data-open={hasCard} inert={!hasCard}>
+              <div>{shown && <div className="pt-5"><CurrentCard a={shown} onOpen={open} pendingPath={navigation.location?.pathname} /></div>}</div>
+            </div>
 
             <Section title="Telefoane" items={phones} catalog={catalog} pendingSku={pendingSku}
               onInstallments={openTerms}
@@ -101,7 +129,7 @@ export default function Shop() {
 }
 
 /** Cardul „Cererea ta”: ultima cerere neîncheiată și drumul înapoi la pasul potrivit (contract v0.5, ruta 6c). */
-function CurrentCard({ a, onOpen, pendingPath }: { a: CurrentApplication; onOpen: (to: string) => void; pendingPath?: string }) {
+function CurrentCard({ a, onOpen, pendingPath }: { a: CurrentApplication; onOpen: (to: string, from: HTMLElement) => void; pendingPath?: string }) {
   const id = a.application_id;
   const v = ({
     consents: { chip: 'Neterminată', cta: 'Continuă', to: `/a/${id}/buget`, tone: 'quiet' },
@@ -126,7 +154,7 @@ function CurrentCard({ a, onOpen, pendingPath }: { a: CurrentApplication; onOpen
         <p className="text-[18px] font-semibold leading-tight">{a.device_name}</p>
         <p className="tabular text-[14px] text-muted">{a.installments} × {lei(a.installment_lei)} · total {lei(a.total_payable_lei)}</p>
       </div>
-      <button type="button" onClick={() => onOpen(v.to)} aria-busy={pending || undefined}
+      <button type="button" onClick={(e) => onOpen(v.to, e.currentTarget)} aria-busy={pending || undefined}
         className="group relative flex h-[46px] items-center justify-center gap-1.5 rounded-full bg-paper text-[15px] font-semibold text-ink transition-[background-color,transform] duration-200 hover:bg-cloud active:scale-[0.98]">
         <span className={cx('inline-flex items-center gap-1.5 transition-opacity', pending && 'opacity-0')}>
           {v.cta}<IconArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -138,14 +166,14 @@ function CurrentCard({ a, onOpen, pendingPath }: { a: CurrentApplication; onOpen
 }
 
 function Section({ title, items, catalog, pendingSku, onInstallments, onBuy }: {
-  title: string; items: Device[]; catalog: Catalog; pendingSku?: string; onInstallments: (d: Device) => void; onBuy: () => void;
+  title: string; items: Device[]; catalog: Catalog; pendingSku?: string; onInstallments: (d: Device, from: HTMLElement) => void; onBuy: () => void;
 }) {
   return (
     <section aria-labelledby={`sec-${title}`} className="flex flex-col gap-3">
       <h2 id={`sec-${title}`} className="text-[18px] font-bold">{title}</h2>
       <div className="grid gap-3">
         {items.map((d, i) => (
-          <ProductCard key={d.sku} d={d} i={i} catalog={catalog} pending={pendingSku === d.sku} onInstallments={() => onInstallments(d)} onBuy={onBuy} />
+          <ProductCard key={d.sku} d={d} i={i} catalog={catalog} pending={pendingSku === d.sku} onInstallments={(el) => onInstallments(d, el)} onBuy={onBuy} />
         ))}
       </div>
     </section>
@@ -155,7 +183,7 @@ function Section({ title, items, catalog, pendingSku, onInstallments, onBuy }: {
 const TONES = ['#2b2b2e', '#d9d4cc', '#3a4a5c', '#e7d9c4'];
 
 function ProductCard({ d, i, catalog, pending, onInstallments, onBuy }: {
-  d: Device; i: number; catalog: Catalog; pending: boolean; onInstallments: () => void; onBuy: () => void;
+  d: Device; i: number; catalog: Catalog; pending: boolean; onInstallments: (from: HTMLElement) => void; onBuy: () => void;
 }) {
   const product = catalog.products.find((p) => p.applies_to === d.category);
   const terms = product?.terms ?? [];
@@ -182,7 +210,7 @@ function ProductCard({ d, i, catalog, pending, onInstallments, onBuy }: {
           className="h-[46px] rounded-full bg-ink text-[15px] font-semibold text-paper transition-[background-color,transform] duration-200 hover:bg-graphite active:scale-[0.97]">
           Cumpără integral
         </button>
-        <button type="button" onClick={onInstallments} disabled={!product} aria-busy={pending || undefined} data-installments={d.sku}
+        <button type="button" onClick={(e) => onInstallments(e.currentTarget)} disabled={!product} aria-busy={pending || undefined} data-installments={d.sku}
           className="relative h-[46px] rounded-full bg-mist text-[15px] font-semibold transition-[background-color,transform] duration-200 hover:bg-cloud active:scale-[0.97] disabled:opacity-50">
           <span className={cx('transition-opacity', pending && 'opacity-0')}>Plătește în rate</span>
           {pending && <Spinner className="absolute inset-0 m-auto size-5" />}

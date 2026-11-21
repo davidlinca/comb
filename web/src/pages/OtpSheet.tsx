@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLoaderData, useNavigate, useOutletContext } from 'react-router-dom';
 import { api, api2, ApiError } from '../lib/api';
 import { lei } from '../lib/format';
-import { vibrate } from '../lib/motion';
+import { useStepBack, vibrate } from '../lib/motion';
 import type { LoaderData, otpLoader } from '../loaders';
 import type { SheetCtx } from '../components/SheetShell';
 import { IconAlert } from '../components/Icons';
@@ -17,6 +17,7 @@ export default function OtpSheet() {
   const id = app.application_id;
   const { close } = useOutletContext<SheetCtx>();
   const nav = useNavigate();
+  const back = useStepBack(`/a/${id}/confirma`);
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +88,7 @@ export default function OtpSheet() {
     <>
       <SheetTop>
         <div className="flex items-center justify-between">
-          <RoundBtn kind="back" onClick={() => nav(`/a/${id}/confirma`, { viewTransition: true })} label="Înapoi la confirmare" />
+          <RoundBtn kind="back" onClick={back} label="Înapoi la confirmare" />
           <span className="text-[15px] font-medium">Semnare</span>
           <RoundBtn kind="close" onClick={close} />
         </div>

@@ -1,10 +1,10 @@
 // Pasul 4 · Oferta: informațiile precontractuale (SECCI) pe un ecran. Fără cronometre, fără presiune.
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useLoaderData, useNavigate, useNavigation, useOutletContext } from 'react-router-dom';
+import { useLoaderData, useLocation, useNavigate, useNavigation, useOutletContext } from 'react-router-dom';
 import { api2, ApiError, type Secci } from '../lib/api';
 import { date, lei, monthYear, pct } from '../lib/format';
-import { useCountUp, useFocusOnMount, useMounted } from '../lib/motion';
+import { reducedMotion, useCountUp, useFocusOnMount, useMounted } from '../lib/motion';
 import { useToast } from '../lib/toast';
 import type { LoaderData, offerLoader } from '../loaders';
 import type { SheetCtx } from '../components/SheetShell';
@@ -19,6 +19,7 @@ export default function OfferSheet() {
   const { close } = useOutletContext<SheetCtx>();
   const nav = useNavigate();
   const navigation = useNavigation();
+  const { pathname } = useLocation();
   const toast = useToast();
   const [full, setFull] = useState(false);
   const [mail, setMail] = useState<'idle' | 'busy' | 'sent'>('idle');
@@ -96,7 +97,7 @@ export default function OfferSheet() {
         <p className="text-center text-[14px] text-muted">Nu există limită de timp pentru decizie.</p>
         <TwoButtons>
           <Btn variant="secondary" onClick={close}>Nu acum</Btn>
-          <Btn onClick={() => nav(`/a/${id}/confirma`, { viewTransition: true })} loading={going}>Continuă <span aria-hidden>→</span></Btn>
+          <Btn onClick={() => nav(`/a/${id}/confirma`, { viewTransition: true, state: { from: pathname } })} loading={going}>Continuă <span aria-hidden>→</span></Btn>
         </TwoButtons>
       </SheetFoot>
 
@@ -121,7 +122,7 @@ function SecciDialog({ s, first, opener, onClose }: { s: Secci; first?: string; 
   const k = s.key;
   const title = useFocusOnMount<HTMLHeadingElement>();
   const [closing, setClosing] = useState(false);
-  const done = () => { setClosing(true); setTimeout(onClose, 220); };
+  const done = () => { if (closing) return; setClosing(true); setTimeout(onClose, reducedMotion() ? 0 : 260); };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); done(); } };
@@ -139,10 +140,10 @@ function SecciDialog({ s, first, opener, onClose }: { s: Secci; first?: string; 
   const host = document.querySelector('[data-screen]') ?? document.body;
   return createPortal(
     <div className="absolute inset-0 z-50 flex flex-col justify-end">
-      <div aria-hidden onClick={done} className={cx('absolute inset-0 bg-black/55 transition-opacity duration-200', closing ? 'opacity-0' : 'animate-fade-in')} />
+      <div aria-hidden onClick={done} className={cx('absolute inset-0 bg-black/55', closing ? 'animate-fade-out' : 'animate-fade-in')} />
       <div role="dialog" aria-modal="true" aria-labelledby="secci-title"
         className={cx('on-dark relative mx-2.5 mb-[max(10px,var(--safe-bottom))] mt-[calc(var(--safe-top)+8px)] flex min-h-0 flex-1 flex-col overflow-hidden rounded-[36px] bg-sheet text-paper',
-          closing ? 'translate-y-8 opacity-0 transition-[transform,opacity] duration-200 ease-in' : 'animate-sheet-up')}>
+          closing ? 'animate-sheet-down' : 'animate-sheet-up')}>
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stroke px-5 py-3.5">
           <h2 id="secci-title" ref={title} tabIndex={-1} className="text-[18px] font-bold outline-none">Formular complet (SECCI)</h2>
           <RoundBtn kind="close" onClick={done} />

@@ -2,7 +2,8 @@
 // fără „Se încarcă…”. Tot aici sunt redirecționările după starea cererii (refresh, înapoi, link vechi).
 import { redirect, type LoaderFunctionArgs } from 'react-router-dom';
 import { api, api2, ApiError, type Application, type Quote } from './lib/api';
-import { catalog, currentMe, requireCustomer, signOut } from './lib/session';
+import { catalog, currentMe, quote, requireCustomer, signOut } from './lib/session';
+import { committedPath, hasSheet } from './lib/motion';
 
 type Args = LoaderFunctionArgs;
 
@@ -29,12 +30,16 @@ export async function loginLoader() {
 
 export const shopLoader = authed(async () => ({ me: await requireCustomer(), catalog: await catalog() }));
 
-/** Cardul „Cererea ta”: rulează la fiecare întoarcere în magazin. O eroare nu strică magazinul (cardul lipsește). */
+/**
+ * Cardul „Cererea ta”, la fiecare întoarcere în magazin. Când vii dintr-un sheet, navigarea nu îl
+ * așteaptă (sheet-ul se închide imediat și pe o rețea lentă, cardul se actualizează după); la prima
+ * încărcare sau după login îl așteptăm, ca magazinul să apară întreg, fără să sară conținutul.
+ * O eroare nu strică magazinul: cardul lipsește.
+ */
 export const currentLoader = authed(async () => {
-  try { return (await api.current()).application; } catch (e) {
-    if (e instanceof ApiError && e.status === 401) throw e;
-    return null;
-  }
+  const current = api.current().then((r) => r.application, () => null);
+  const initial = hasSheet(committedPath()) ? undefined : await current;
+  return { current, initial };
 });
 
 export const termLoader = authed(async ({ params }) => {
@@ -43,7 +48,7 @@ export const termLoader = authed(async ({ params }) => {
   const product = device && cat.products.find((p) => p.applies_to === device.category);
   if (!device || !product) throw redirect('/shop');
   const pairs = await Promise.all(product.terms.map((t) =>
-    api.quote({ sku: device.sku, product_id: product.id, term_months: t }).then((q) => [t, q] as const)));
+    quote({ sku: device.sku, product_id: product.id, term_months: t }).then((q) => [t, q] as const)));
   return { catalog: cat, device, product, quotes: Object.fromEntries(pairs) as Record<number, Quote> };
 });
 

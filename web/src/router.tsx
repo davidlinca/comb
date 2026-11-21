@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createBrowserRouter, Outlet, redirect, useNavigation } from 'react-router-dom';
-import { clearTransitionMark } from './lib/motion';
+import { installTransitionMarks } from './lib/motion';
 import PhoneFrame from './components/PhoneFrame';
 import SheetShell from './components/SheetShell';
 import { ToastProvider } from './lib/toast';
@@ -18,14 +18,32 @@ import AgreementSheet from './pages/AgreementSheet';
 import { RootError, SheetError, Splash } from './pages/Errors';
 
 function Stage() {
-  const state = useNavigation().state;
-  useEffect(() => { if (state === 'idle') clearTransitionMark(); }, [state]);
   return (
     <PhoneFrame>
       <ToastProvider>
         <Outlet />
+        <NavProgress />
       </ToastProvider>
     </PhoneFrame>
+  );
+}
+
+/**
+ * Bară subțire sus, pentru navigările care durează (rețea lentă), mai ales Înapoi / Înainte din browser,
+ * unde niciun buton nu arată că se încarcă. Apare după 300 ms și doar dacă nu se vede deja un spinner.
+ */
+function NavProgress() {
+  const busy = useNavigation().state !== 'idle';
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (!busy) { setShow(false); return; }
+    const t = setTimeout(() => setShow(!document.querySelector('[aria-busy="true"]')), 300);
+    return () => clearTimeout(t);
+  }, [busy]);
+  return (
+    <div aria-hidden className={`pointer-events-none absolute inset-x-0 top-[var(--safe-top)] z-[65] h-[3px] overflow-hidden transition-opacity duration-300 ${show ? 'opacity-100' : 'opacity-0'}`}>
+      {show && <span className="nav-progress block h-full w-2/5 rounded-full bg-brand" />}
+    </div>
   );
 }
 
@@ -71,3 +89,5 @@ export const router = createBrowserRouter([
     hydrateFallbackElement: <Splash />,
   },
 ]);
+
+installTransitionMarks(router);
