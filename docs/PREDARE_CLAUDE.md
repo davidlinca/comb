@@ -1,6 +1,6 @@
 # Predare pentru Claude – conversatia urmatoare
 
-Versiune: sambata 21.11.2026, 10:50 (API 1–16 + back-office + ZERO4 in `main`; urmeaza integrarea cu David – vezi 5.0). Scris pentru conversatia noua (Opus 5.5, effort extra).
+Versiune: sambata 21.11.2026, 11:30 (arhivare cereri demo + `docs/ARHITECTURA.md`; pitch in engleza 3–5 min, aplicatia ramane in romana; urmeaza integrarea cu David – vezi 5.0). Scris pentru conversatia noua (Opus 5.5, effort extra).
 Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spune CUM lucram, UNDE e totul, CE e gata si CE urmeaza exact.
 
 ---
@@ -44,14 +44,14 @@ Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spun
 | Cheia publishable | `sb_publishable_LJBH2tJNlXCXEZCh9ujE2g_IBeMHh2f` (publica, merge in front, doar in headerul `apikey`) |
 | Cheia secret | DOAR in mediul Edge Function (`SUPABASE_SECRET_KEYS`). Niciodata in chat, fisiere sau front |
 | API | `https://ezynswlvqqrzahpblkxu.supabase.co/functions/v1/api` – Edge Function `api`, versiunea 3 (partea 2, 21.11 03:25), `verify_jwt = false` |
-| Migratii aplicate | `20261120231817 init_schema` (singura; partea 2 NU a cerut migrari) |
+| Migratii aplicate | `20261120231817 init_schema`, `20261121091630 application_archive` (coloana `applications.archived_at` + index partial; 21.11, 11:16) |
 | Secrete Edge Function | `OTP_PEPPER` (setat de Bogdan cu `npx supabase secrets set` pe 21.11, valoarea nu apare nicaieri), `ALLOWED_ORIGINS` (de setat cu domeniul Vercel) |
 | Conturi demo | `ana@`, `mihai@`, `ioana@demo.comb.ro` – parola `Demo2026!` (publica, in front). `operator@demo.comb.ro` – parola doar la Bogdan, `app_metadata.role = operator` |
 | Vercel | conectorul Vercel e conectat in claude.ai; proiectul NU e inca legat de repo. Repo-ul e pe contul lui David |
 | Proiect claude.ai | „HACKATHON”: `DECIZII_HACKATHON.md`, `PREDARE_CLAUDE.md`, brieful PDF, 2 poze cu notite de pitch |
 | Doc de invatare pentru Bogdan | https://claude.ai/artifact/Gppawttr1LQRGWbNVNb36b (Docs) |
 
-**Starea datelor pe server (21.11, 03:30):** 63 clienti, 983 facturi, 47 cereri (42 din seed + 5 create de testele API), 370 intrari in jurnal, 0 jurnale invalide, 15 contracte, 7 cereri in coada de revizuire.
+**Starea datelor pe server (21.11, 11:15):** 63 clienti, 54 cereri (42 din seed + 12 create de testele API, toate pe Ana/Mihai/Ioana), 444 intrari in jurnal, 0 jurnale invalide, 18 contracte, 7 cereri in coada de revizuire. API `api` versiunea 4.
 
 ---
 
@@ -172,7 +172,7 @@ Implementat dupa specificatia de mai jos, cu deciziile din 5.3. Contractul final
 | 4 | Ruta `/backoffice` in router-ul lui (vezi `web/src/backoffice/README.md`) | noi, cu acordul lui | acord | medium |
 | 5 | Vercel (root `web`) + secretul `ALLOWED_ORIGINS` (`npx supabase secrets set ALLOWED_ORIGINS=https://<domeniu>,http://localhost:5173 --project-ref ...`) + QR | David importa, Bogdan secretul | domeniul | medium |
 | 6 | Numele operatorului/modelelor: update `devices` (cu aprobare) + `OPERATOR_NAME` in `lib/flow.ts` + redeploy | noi | numele | medium |
-| 7 | Date curate pentru demo (cererile de test raman in jurnal; decizie, nu stergere) | noi | – | high |
+| 7 | Date curate pentru demo – **decis si scris (11:20)**: `archived_at` (migratie aplicata), back-office-ul ascunde cererile arhivate, `data/archive_demo.sql` (Bogdan il ruleaza dupa deploy si duminica inainte de pitch). Test: `npm run test:archive` (8/8) | noi | – | gata dupa deploy |
 | 8 | Testul SECCI cu oameni | David | rezultatele | – |
 | 9 | Slide tehnic + securitate | noi | locul in deck | high |
 | 10 | Rezerva buguri | noi | – | high |
