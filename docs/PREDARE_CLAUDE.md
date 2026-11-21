@@ -1,6 +1,6 @@
 # Predare pentru Claude – conversatia urmatoare
 
-Versiune: sambata 21.11.2026, 04:00 (API partea 2 in `main`; back-office scris si testat; deciziile din 5.3 rezolvate). Scris pentru conversatia noua (Opus 5.5, effort extra).
+Versiune: sambata 21.11.2026, 10:50 (API 1–16 + back-office + ZERO4 in `main`; urmeaza integrarea cu David – vezi 5.0). Scris pentru conversatia noua (Opus 5.5, effort extra).
 Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spune CUM lucram, UNDE e totul, CE e gata si CE urmeaza exact.
 
 ---
@@ -37,7 +37,7 @@ Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spun
 
 | Ce | Valoare |
 |---|---|
-| Repo | https://github.com/davidlinca/comb (public). `main` la `e7aa2f9`. PR-uri merge-uite: #1 schema, #2 motor + date, #3 API partea 1, #4 docs contract v0.1, #5 docs predare, #6 API partea 2. In lucru: `feat/backend-backoffice`. Proiectul `web/` al lui David NU e inca pe GitHub (in `main`, `web/` are doar `src/backoffice/`) |
+| Repo | https://github.com/davidlinca/comb (public). `main` la `6ecefe0`. PR-uri merge-uite: #1 schema, #2 motor + date, #3 API partea 1, #4 docs v0.1, #5 docs predare, #6 API partea 2, #7 back-office, #8 text retragere 0%, #9 test ZERO4. La 10:45 proiectul `web/` al lui David NU era pe GitHub (in `main`, `web/` are doar `src/backoffice/`) – verifica cu `git ls-remote` |
 | Folder local Bogdan | `D:\HACKATHON\comb` (Windows, PowerShell). Montat in device_bash la `$HOME/mnt/comb` |
 | Supabase | proiect `comb`, ref `ezynswlvqqrzahpblkxu`, org „MareBogdan's Org” (Free), regiunea eu-central-1 |
 | URL | `https://ezynswlvqqrzahpblkxu.supabase.co` |
@@ -63,7 +63,7 @@ Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spun
 | Motorul (DAE, rate, decizie, lista alba, retragere, SECCI) | in repo | `supabase/functions/_shared/engine/` | `engine.test.ts` – 25/25 in Node si Deno |
 | Date demo | aplicat pe server (rulat de Bogdan in SQL Editor) + conturi legate | `data/generate_seed.ts` → `data/seed_demo.sql`, `data/link_accounts.sql` | `supabase/tests/seed.test.mjs` |
 | API partea 1 (rutele 1–6) | publicat (CLI), testat pe server | `supabase/functions/api/` | `supabase/tests/api_smoke.mjs` – 15/15 |
-| API partea 2 (rutele 6b, 7–16) | publicat (CLI, v3), testat pe server 62/63 (FAIL-ul era in test: ordinea cheilor din jsonb; reparat) | `routes/signing.ts`, `routes/agreements.ts`, `routes/backoffice.ts`, `lib/flow.ts`, `GET /applications/:id` in `routes/customer.ts` | `lib/flow.test.ts` 12/12 (Node + Deno), `deno check` ok; `api_smoke.mjs` extins la 63 verificari |
+| API partea 2 (rutele 6b, 7–16) | publicat (CLI, v3), testat pe server 62/63 (FAIL-ul era in test: ordinea cheilor din jsonb; reparat) | `routes/signing.ts`, `routes/agreements.ts`, `routes/backoffice.ts`, `lib/flow.ts`, `GET /applications/:id` in `routes/customer.ts` | `lib/flow.test.ts` 12/12 (Node + Deno), `deno check` ok; `api_smoke.mjs` extins la 71 verificari (cu ZERO4), 71/71 pe server la 10:40 |
 | Back-office | scris, testat pe server cu operatorul (pagina de proba) | `web/src/backoffice/` (Backoffice, LedgerView, ReviewsView, api, format, ui, README) + `tools/backoffice-dev/` | `npm run build` (tsc strict + vite) ok; verificat in Chrome: 25/25 jurnale intacte, coada cu 7 cereri, „Vezi jurnalul” merge |
 | Checklist CCD2 + securitate | in DECIZII, sectiunile 13–14 | `docs/` | – |
 
@@ -162,6 +162,26 @@ Implementat dupa specificatia de mai jos, cu deciziile din 5.3. Contractul final
 - **15. `GET /backoffice/ledger`** (operator): `?application_id=` → intrarile + `ledger_verify` (prin `admin.rpc`); fara parametru → ultimele 25 de cereri, verificate in paralel, fara migrare (decis).
 - **16. `GET/POST /backoffice/reviews`** (operator): coada `pending`; `POST { review_id, status: approved|rejected, note }` → update `human_reviews` (`operator_user_id`, `resolved_at`), statusul cererii, jurnal `human_review_resolved` (actor `operator`).
 - Dupa rute: extinzi `api_smoke.mjs` (SECCI → OTP → semnare → contract → „sari la ziua 3” → retragere; operator: coada + jurnal verificat; Ana nu are acces la back-office → 403). Bogdan face deploy si ruleaza testul.
+
+### 5.0 Ce mai e de facut (21.11, 10:50) – lista de lucru
+| # | Ce | Cine | De la David | Nivel |
+|---|---|---|---|---|
+| 1 | ~~Test ZERO4 pe server~~ | – | – | gata (71/71; textul la retragere 0% corectat, API redeployat) |
+| 2 | Proiectul `web/` pe GitHub | David | push `feat/david-web` + PR | – |
+| 3 | Integrare cu API-ul real (CORS, token, erori) | David + noi | cod eroare + ruta | high |
+| 4 | Ruta `/backoffice` in router-ul lui (vezi `web/src/backoffice/README.md`) | noi, cu acordul lui | acord | medium |
+| 5 | Vercel (root `web`) + secretul `ALLOWED_ORIGINS` (`npx supabase secrets set ALLOWED_ORIGINS=https://<domeniu>,http://localhost:5173 --project-ref ...`) + QR | David importa, Bogdan secretul | domeniul | medium |
+| 6 | Numele operatorului/modelelor: update `devices` (cu aprobare) + `OPERATOR_NAME` in `lib/flow.ts` + redeploy | noi | numele | medium |
+| 7 | Date curate pentru demo (cererile de test raman in jurnal; decizie, nu stergere) | noi | – | high |
+| 8 | Testul SECCI cu oameni | David | rezultatele | – |
+| 9 | Slide tehnic + securitate | noi | locul in deck | high |
+| 10 | Rezerva buguri | noi | – | high |
+| 11 | Optional: scena „rata ratata” (art. 35) | noi | – | high |
+| 12 | Duminica: OUG aparut? + video de rezerva | noi | – | medium |
+| 13 | Intrebari mentor Neofin | Bogdan/David | – | – |
+| 14 | Repetitii + trimitere (limita 13:30 duminica) | ambii | – | – |
+
+Explicatia back-office-ului pentru Bogdan: proiect claude.ai `HACKATHON/BACKOFFICE_EXPLICAT.md`.
 
 ### 5.2 Dupa API (plan pe ore in DECIZII sectiunea 8)
 - Sincronizarea 1 cu David la 13:00 (contract confirmat). Poarta la 19:00 (flux real cap-coada; daca nu, taiem ZERO4 si scena optionala).
