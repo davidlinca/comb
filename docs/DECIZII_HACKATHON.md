@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 01:50 (adaugate: sectiunile 13–14, proiectul Supabase si regula de merge din sectiunea 7, regulile de calcul din sectiunea 5, valorile exacte din exemplele sectiunii 6). Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 02:40 (adaugate: sectiunile 13–14, proiectul Supabase si regula de merge din sectiunea 7, regulile de calcul din sectiunea 5, valorile exacte si schimbarile v0.1 din sectiunea 6). Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -213,6 +213,15 @@ ZERO4 e intentionat in demo: il da un creditor partener (tert), pe mai mult de 5
 | 14 | POST | `/demo/time-travel` | 6 | P1 |
 | 15 | GET | `/backoffice/ledger` | back-office | P0 |
 | 16 | GET/POST | `/backoffice/reviews` | back-office | P1 |
+
+### Schimbari v0.1 (21.11, 02:40) – fata de exemplele de mai jos
+- `POST /applications`: body-ul are si `"shown": { "ad_warning": true, "personalised_label": true }` (dovada pentru art. 8 si 13). Fara `ad_warning: true` → 400 `AD_WARNING_NOT_SHOWN`; client postpaid fara `personalised_label: true` → 400 `PERSONALISED_LABEL_NOT_SHOWN`. Raspunsul vine cu 201 si are in plus `quote`.
+- `GET /me` are in plus `role` (`customer` / `operator`); pentru operator vine doar `{ role, display_name }`.
+- `GET /catalog`: `personalised.text` e `null` pentru prepaid.
+- `/quotes` si `/applications` au in plus `last_installment_lei`.
+- Erorile pot avea `fields` (campurile gresite). Coduri noi: `FORBIDDEN_FIELD`, `CONSENTS_MISSING`, `PRIVACY_NOTICE_REQUIRED`, `TERM_NOT_ALLOWED`, `PRODUCT_NOT_APPLICABLE`, `ALREADY_ASSESSED` (409).
+- `/assessment` cere intai `/consents`; a doua evaluare pe aceeasi cerere → 409.
+- ID-urile sunt UUID; `app_001` din exemple e doar forma.
 
 ### Exemple de raspuns (mock-uri, pentru Ana)
 
