@@ -1,18 +1,19 @@
 // După semnare: contractul, termenul de retragere, mementoul și retragerea (confirmare → închis).
 import { useState } from 'react';
 import { useLoaderData, useLocation, useNavigate, useNavigation, useOutletContext } from 'react-router-dom';
-import { api2, ApiError, type WithdrawResult } from '../lib/api';
+import { api2, ApiError, type Forbearance, type ForbearanceOption, type WithdrawResult } from '../lib/api';
 import { addDays, date, dateLong, daysBetween, lei, pct } from '../lib/format';
 import { withTransition } from '../lib/motion';
 import { useToast } from '../lib/toast';
 import type { agreementLoader, LoaderData } from '../loaders';
 import type { SheetCtx } from '../components/SheetShell';
+import { ForbearanceResult, MissedView } from './MissedInstallment';
 import { IconBell, IconTick, IconUndo, IconUserQuestion } from '../components/Icons';
 import {
   Btn, Card, Collapse, ErrorNote, Notice, RoundBtn, Row, Rows, SheetBody, SheetFoot, SheetTop, StatusHead, TwoButtons,
 } from '../components/ui';
 
-type View = 'signed' | 'confirm' | 'withdrawn';
+type View = 'signed' | 'confirm' | 'withdrawn' | 'missed' | 'forbearance';
 
 export default function AgreementSheet() {
   const { agreement: agr, app, device } = useLoaderData() as LoaderData<typeof agreementLoader>;
@@ -23,21 +24,37 @@ export default function AgreementSheet() {
   const navigation = useNavigation();
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState<'withdraw' | 'jump' | null>(null);
+  const [busy, setBusy] = useState<'withdraw' | 'jump' | 'choose' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<WithdrawResult | null>(null);
+  const [chosen, setChosen] = useState<{ f: Forbearance; text: string } | null>(null);
+  const [jumping, setJumping] = useState<number | null>(null);
   const justSigned = !!(state as { justSigned?: boolean } | null)?.justSigned;
 
   const withdrawn = agr.status === 'withdrawn' || !!result;
-  const view: View = withdrawn ? 'withdrawn' : confirming ? 'confirm' : 'signed';
+  const forbearance = chosen?.f ?? agr.forbearance ?? null;
+  const missed = agr.missed_installment && agr.forbearance_options && !forbearance ? agr.missed_installment : null;
+  const view: View = withdrawn ? 'withdrawn' : forbearance ? 'forbearance' : missed ? 'missed' : confirming ? 'confirm' : 'signed';
   const o = app.offer;
   const refresh = () => nav(pathname, { replace: true, viewTransition: true });
   const loading = navigation.state === 'loading' && navigation.location.pathname === pathname;
 
-  async function jumpDay3() {
-    setBusy('jump'); setError(null);
-    try { await api2.timeTravel(aid, 3); refresh(); toast('Demo: ziua 3 după semnare.'); }
+  async function jump(days: number) {
+    setBusy('jump'); setJumping(days); setError(null);
+    try { await api2.timeTravel(aid, days); refresh(); toast(`Demo: ziua ${days} după semnare.`); }
     catch (e) { setError(e instanceof ApiError ? e.message : 'Nu am putut sări în timp.'); }
+    setBusy(null);
+  }
+  async function choose(option: ForbearanceOption) {
+    setBusy('choose'); setError(null);
+    try {
+      const r = await api2.forbearance(aid, option);
+      withTransition(() => setChosen({ f: r.forbearance, text: r.text }));
+    } catch (e) {
+      // alegerea există deja sau rata nu mai e restantă: reîncărcăm starea reală
+      if (e instanceof ApiError && (e.code === 'FORBEARANCE_ALREADY_CHOSEN' || e.code === 'NO_MISSED_INSTALLMENT' || e.code === 'ALREADY_WITHDRAWN')) refresh();
+      setError(e instanceof ApiError ? e.message : 'Alegerea nu a putut fi trimisă.');
+    }
     setBusy(null);
   }
   async function withdraw() {
@@ -73,6 +90,17 @@ export default function AgreementSheet() {
         <SheetFoot><Btn className="w-full" onClick={close}>Înapoi la magazin</Btn></SheetFoot>
       </>
     );
+  }
+
+  /* ---------- rata ratată (art. 35): măsura aleasă ---------- */
+  if (view === 'forbearance' && forbearance) {
+    return <ForbearanceResult f={forbearance} text={chosen?.text} onClose={close} />;
+  }
+
+  /* ---------- rata ratată (art. 35): variantele ---------- */
+  if (view === 'missed' && missed && agr.forbearance_options) {
+    return <MissedView missed={missed} notice={agr.missed_notice} options={agr.forbearance_options}
+      busy={busy === 'choose'} error={error} onChoose={choose} onClose={close} />;
   }
 
   /* ---------- confirmarea retragerii ---------- */
@@ -112,7 +140,7 @@ export default function AgreementSheet() {
         <StatusHead icon={<IconTick className="size-8" animate />} title="Contract semnat" pulse={justSigned}
           sub="Contractul și formularul SECCI sunt pe email (simulat)." />
 
-        {reminder && (
+        {reminder && agr.can_withdraw && (
           <Notice accent icon={<IconBell className="size-5" />} className="animate-fade-up">
             <p role="status" className="text-[15px]">
               <b className="font-semibold">Mai ai {daysLeft} {daysLeft === 1 ? 'zi' : 'zile'} să te retragi</b>
@@ -160,18 +188,23 @@ export default function AgreementSheet() {
             <Btn onClick={close}>Gata</Btn>
           </TwoButtons>
         ) : <Btn className="w-full" onClick={close}>Gata</Btn>}
-        {agr.can_withdraw && (
-          <div className="flex min-h-9 items-center justify-center gap-3 text-[12.5px] text-muted">
+        {agr.status === 'active' && agr.demo_offset_days < 35 && (
+          <div className="flex min-h-9 flex-wrap items-center justify-center gap-x-3 text-[12.5px] text-muted">
             {agr.demo_offset_days > 0 && <span>Demo: ziua {agr.demo_offset_days} după semnare</span>}
-            {agr.demo_offset_days < 3 && (
-              <button type="button" onClick={jumpDay3} disabled={!!busy || loading}
-                className="min-h-9 rounded-md px-1 underline decoration-muted/50 underline-offset-4 hover:text-paper disabled:opacity-60">
-                {busy === 'jump' || (loading && !busy) ? 'Se sare…' : 'Sari la ziua 3 (demo)'}
-              </button>
-            )}
+            {agr.demo_offset_days < 3 && agr.can_withdraw && <DemoJump days={3} onClick={jump} disabled={!!busy || loading} busy={(busy === 'jump' || loading) && jumping === 3} />}
+            <DemoJump days={35} onClick={jump} disabled={!!busy || loading} busy={(busy === 'jump' || loading) && jumping === 35} />
           </div>
         )}
       </SheetFoot>
     </>
+  );
+}
+
+function DemoJump({ days, onClick, disabled, busy }: { days: number; onClick: (d: number) => void; disabled: boolean; busy: boolean }) {
+  return (
+    <button type="button" onClick={() => onClick(days)} disabled={disabled}
+      className="min-h-9 rounded-md px-1 underline decoration-muted/50 underline-offset-4 hover:text-paper disabled:opacity-60">
+      {busy ? 'Se sare…' : `Sari la ziua ${days} (demo)`}
+    </button>
   );
 }

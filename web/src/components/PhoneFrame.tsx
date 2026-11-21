@@ -94,7 +94,7 @@ const FLOW = [
   { t: 'Rezultat', d: 'Motive clare și analiză umană la cerere', law: 'art. 18' },
   { t: 'Oferta', d: 'Formularul SECCI pe un ecran, fără presiune', law: 'art. 10' },
   { t: 'Semnare', d: 'Glisare deliberată și cod SMS', law: '' },
-  { t: 'Contract', d: '14 zile de retragere, cu memento', law: 'art. 26' },
+  { t: 'Contract', d: '14 zile de retragere cu memento; ajutor la rata ratată', law: 'art. 26 · 35' },
 ];
 
 /** Coloana din stânga pe ecrane late: unde se află demo-ul în flux. */

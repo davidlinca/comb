@@ -90,12 +90,34 @@ export type Secci = {
   schedule: { n: number; due_date: string; amount_lei: number }[];
 };
 export type SignResult = { agreement_id: string; signed_at: string; first_installment_due: string; withdrawal_deadline: string; reminder_window: { from: string; to: string } | null };
+// ---- rata ratată (art. 35, contract v0.6) ----
+export type MissedInstallment = { n: number; due_date: string; amount_lei: number; days_late: number };
+export type MissedNotice = { sent_at: string; channel: string; text: string };
+export type PlanRow = { n: number; due_date: string; amount_lei: number; principal_lei?: number; interest_lei?: number; balance_lei?: number };
+export type ForbearancePlan = {
+  installment_lei: number; last_installment_lei: number; installments: number; first_due_date: string; last_due_date: string;
+  total_payable_lei: number; extra_cost_lei: number; schedule: PlanRow[];
+};
+export type ForbearanceOption = 'defer' | 'reschedule' | 'talk';
+export type ForbearanceOptions = { defer: ForbearancePlan; reschedule: ForbearancePlan; talk: { eta_text: string } };
+export type Forbearance = {
+  option: ForbearanceOption; chosen_at: string; installment_n: number; missed_due_date: string; text: string;
+  installment_lei: number | null; last_installment_lei: number | null; installments: number | null; first_due_date: string | null;
+  last_due_date: string | null; total_payable_lei: number | null; extra_cost_lei: number | null; schedule: PlanRow[] | null;
+  review: { status: string; resolved_at: string | null } | null;
+};
+
 export type Agreement = {
   agreement_id: string; application_id: string; status: 'active' | 'withdrawn' | string; signed_at: string;
   first_installment_due: string; withdrawal_deadline: string; can_withdraw: boolean; today: string; demo_offset_days: number;
   reminder_window: { from: string; to: string } | null;
   reminders: { sent_at: string; channel: string; text: string }[];
   withdrawal: { withdrawn_at: string; amount_to_return_lei: number; return_by: string } | null;
+  // v0.6 (opționale până la deploy)
+  missed_installment?: MissedInstallment | null;
+  missed_notice?: MissedNotice | null;
+  forbearance_options?: ForbearanceOptions | null;
+  forbearance?: Forbearance | null;
 };
 export type WithdrawResult = { status: string; amount_to_return_lei: number; principal_lei: number; interest_lei: number; days_used: number; return_by: string; text: string };
 
@@ -107,5 +129,6 @@ export const api2 = {
   sign: (id: string, otp: string) => request<SignResult>('POST', `/applications/${id}/sign`, { otp }),
   agreement: (aid: string) => request<Agreement>('GET', `/agreements/${aid}`),
   withdraw: (aid: string) => request<WithdrawResult>('POST', `/agreements/${aid}/withdraw`),
+  forbearance: (aid: string, option: ForbearanceOption) => request<{ forbearance: Forbearance; text: string }>('POST', `/agreements/${aid}/forbearance`, { option }),
   timeTravel: (aid: string, days: number) => request<{ today: string }>('POST', '/demo/time-travel', { agreement_id: aid, days }),
 };
