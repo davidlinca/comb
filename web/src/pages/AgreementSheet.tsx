@@ -57,7 +57,7 @@ export default function AgreementSheet() {
           <div className="flex flex-col items-center gap-2 text-center">
             <span className="grid size-16 place-items-center rounded-full bg-field text-paper"><IconCheck className="size-7" /></span>
             <h2 className="text-[24px] font-bold">Te-ai retras din contract</h2>
-            <p className="text-[15px] text-muted">Detaliile plății sunt în email.</p>
+            <p className="text-[15px] text-muted">Detaliile plății sunt în email (simulat).</p>
           </div>
           {w && (
             <dl className="rounded-2xl border border-line px-4 py-1 text-[15px]">
@@ -85,7 +85,7 @@ export default function AgreementSheet() {
         <div className="-mt-6 flex flex-col items-center gap-2 text-center">
           <span className="grid size-16 place-items-center rounded-full bg-field text-brand"><IconParty /></span>
           <h2 className="text-[24px] font-bold">Contractul a fost semnat!</h2>
-          <p className="text-[15px] text-muted">O copie a contractului a fost trimisă pe email.</p>
+          <p className="text-[15px] text-muted">O copie a contractului a fost trimisă pe email (simulat).</p>
         </div>
 
         {reminder && (
