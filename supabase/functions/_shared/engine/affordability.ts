@@ -3,7 +3,9 @@
 //  - Venit folosit = minimul dintre declarat si contul bancar (Open Banking, simulat); cheltuieli = maximul.
 //    Fara acord pentru datele bancare (sau fara date) -> venitul nu e verificat -> revizuire umana,
 //    niciodata aprobare automata pe venit nedovedit (art. 18(3), decizie 21.11, 11:45).
-//  - Alte rate folosite = maximul dintre ce declara clientul si Biroul de Credit (simulat).
+//  - Alte rate folosite = maximul dintre ce declara clientul, Biroul de Credit (simulat) si ratele platite lunar
+//    vazute in contul bancar (Open Banking, simulat; doar cu acordul bank_data) – prinde BNPL, rate la magazin,
+//    IFN-uri care nu raporteaza la Birou (decizie 21.11, 15:10, engine-v3).
 //  - Grad de indatorare = (alte rate + rata noua) / venit net. Peste 40% -> respins (limita BNR).
 //  - Ce ramane = venit - cheltuieli - alte rate - rata noua.
 //      sub 0 -> respins;  intre 0 si 500 lei -> revizuire umana;  500+ -> ok.
@@ -13,7 +15,7 @@
 
 import { leiRotunjit, pctRotunjit, round2 } from './money.ts';
 
-export const ENGINE_VERSION = 'engine-v2';
+export const ENGINE_VERSION = 'engine-v3';
 export const BANK_SOURCE = 'Open Banking (simulat)';
 export const MAX_REASONS = 4;
 export const DTI_MAX_PCT = 40;
@@ -39,6 +41,8 @@ export type AffordabilityInput = {
   /** contul bancar (Open Banking, simulat): null daca nu e acord sau nu exista date */
   bank_income_lei: number | null;
   bank_expenses_lei: number | null;
+  /** ratele platite lunar vazute in cont (BNPL, rate la magazin, IFN); null daca nu e acord sau nu exista date */
+  bank_installments_lei: number | null;
   /** used = acord + date; no_consent = fara acord; unavailable = acord, dar fara date */
   bank_status: 'used' | 'no_consent' | 'unavailable';
 };
@@ -48,7 +52,7 @@ export type Verification = {
   source: string | null;
   income: { declared_lei: number; verified_lei: number | null; used_lei: number };
   expenses: { declared_lei: number; verified_lei: number | null; used_lei: number };
-  other_installments: { declared_lei: number; bureau_lei: number; used_lei: number };
+  other_installments: { declared_lei: number; bureau_lei: number; bank_lei: number | null; used_lei: number };
 };
 
 export type AffordabilityResult = {
@@ -70,8 +74,9 @@ export type AffordabilityResult = {
 };
 
 export function assessAffordability(i: AffordabilityInput): AffordabilityResult {
-  const other = Math.max(i.other_installments_declared_lei, i.other_installments_bureau_lei);
   const bankUsed = i.bank_status === 'used' && i.bank_income_lei !== null && i.bank_expenses_lei !== null;
+  const bankInst = bankUsed ? (i.bank_installments_lei ?? 0) : null;
+  const other = Math.max(i.other_installments_declared_lei, i.other_installments_bureau_lei, bankInst ?? 0);
   const income = bankUsed ? Math.min(i.net_income_lei, i.bank_income_lei as number) : i.net_income_lei;
   const expenses = bankUsed ? Math.max(i.monthly_expenses_lei, i.bank_expenses_lei as number) : i.monthly_expenses_lei;
   const dtiExact = income > 0 ? ((other + i.new_installment_lei) / income) * 100 : null; // pentru decizie
@@ -153,8 +158,13 @@ export function assessAffordability(i: AffordabilityInput): AffordabilityResult 
     info.push({ code: 'HISTORY_NOT_USED', text: 'Nu am folosit istoricul facturilor tale, pentru ca nu ti-ai dat acordul.' });
   }
 
-  // 5. Verificarea cu Biroul de Credit (simulat)
-  if (i.other_installments_bureau_lei > i.other_installments_declared_lei) {
+  // 5. Alte rate: Biroul de Credit (simulat) si ratele vazute in contul bancar; explicam sursa care a fost folosita
+  if (bankInst !== null && bankInst > Math.max(i.other_installments_declared_lei, i.other_installments_bureau_lei)) {
+    bureau.push({
+      code: 'BANK_INSTALLMENTS_HIGHER',
+      text: `Am folosit ratele pe care le platesti lunar, vazute in contul tau bancar (${leiRotunjit(bankInst)} lei pe luna), mai mari decat cele declarate (${leiRotunjit(i.other_installments_declared_lei)} lei) si decat cele de la Biroul de Credit (${leiRotunjit(i.other_installments_bureau_lei)} lei).`,
+    });
+  } else if (i.other_installments_bureau_lei > i.other_installments_declared_lei) {
     bureau.push({
       code: 'BUREAU_HIGHER',
       text: `Am folosit ratele raportate de Biroul de Credit (${leiRotunjit(i.other_installments_bureau_lei)} lei pe luna), mai mari decat cele declarate (${leiRotunjit(i.other_installments_declared_lei)} lei).`,
@@ -180,7 +190,7 @@ export function assessAffordability(i: AffordabilityInput): AffordabilityResult 
       source: bankUsed ? BANK_SOURCE : null,
       income: { declared_lei: i.net_income_lei, verified_lei: bankUsed ? i.bank_income_lei : null, used_lei: income },
       expenses: { declared_lei: i.monthly_expenses_lei, verified_lei: bankUsed ? i.bank_expenses_lei : null, used_lei: expenses },
-      other_installments: { declared_lei: i.other_installments_declared_lei, bureau_lei: i.other_installments_bureau_lei, used_lei: other },
+      other_installments: { declared_lei: i.other_installments_declared_lei, bureau_lei: i.other_installments_bureau_lei, bank_lei: bankInst, used_lei: other },
     },
     human_review_available: true,
     debt_advice: decision === 'rejected' ? DEBT_ADVICE : null,

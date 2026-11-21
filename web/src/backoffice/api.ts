@@ -70,6 +70,7 @@ export type Review = {
     residual_lei: number | null; late_bills_12m: number | null; net_income_lei: number | null;
     monthly_expenses_lei: number | null; other_installments_declared_lei: number | null;
     other_installments_bureau_lei: number | null; other_installments_used_lei: number | null;
+    other_installments_bank_lei?: number | null; // rate vazute in cont (engine-v3); null fara acord / pe evaluarile vechi
     billing_history_used: boolean;
     // verificarea venitului (Open Banking, simulat); null pe evaluarile vechi
     bank_data_used?: boolean; income_verified_lei?: number | null; income_used_lei?: number | null;

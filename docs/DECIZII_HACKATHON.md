@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 14:50 (aplicatia live pe Vercel, testata cap-coada; statusul din sectiunea 15). Versiunea 14:25 (numele operatorului in SECCI: „Telvia (demo)”, sectiunea 1). Versiunea 13:05: adaugata sectiunea 16, idei de roadmap de la mentori. Versiunea 12:15: verificarea venitului prin Open Banking simulat – contract v0.3 in sectiunea 6, regula in sectiunea 5, checklist 4–5). Versiunea 11:30: pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 15:40 (**alte rate vazute in contul bancar – engine-v3, contract v0.4** in sectiunea 6; regula in sectiunea 5; Mihai: banca 750 lei; scena art. 35 si recomandarea prudenta raman in afara codului – sectiunea 16). Versiunea 15:00 (**formatul prezentarii anuntat de organizatori la 13:34**: 3 min business + 1 min demo inregistrat + 2 min Q&A, fara laptop propriu – sectiunile 1, 10, 11). Versiunea 14:50 (aplicatia live pe Vercel, testata cap-coada; statusul din sectiunea 15). Versiunea 14:25 (numele operatorului in SECCI: „Telvia (demo)”, sectiunea 1). Versiunea 13:05: adaugata sectiunea 16, idei de roadmap de la mentori. Versiunea 12:15: verificarea venitului prin Open Banking simulat – contract v0.3 in sectiunea 6, regula in sectiunea 5, checklist 4–5). Versiunea 11:30: pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -32,7 +32,8 @@ Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 | Deploy | Web: Vercel, legat de repo-ul lui David (prin conectorul Vercel). API: Supabase Edge Functions. Fara Render |
 | Brand | Operator fictiv (numele il alege David; sa nu semene cu Orange, Vodafone sau Digi). Creditor partener fictiv. Fara logo-uri reale |
 | Simulat | OTP (codul apare pe ecran), Biroul de Credit, contul bancar (Open Banking), creditorul partener, trimiterea pe email |
-| Limba | Aplicatia in romana (produs pentru clienti romani); pitch-ul in engleza, 3–5 minute (21.11, 11:00) |
+| Limba | Aplicatia in romana (produs pentru clienti romani); prezentarea in engleza (21.11, 11:00) |
+| Formatul prezentarii | **Anuntat de organizatori (21.11, 13:34), strict cronometrat, 6 minute:** 3 min pitch de business (problema, solutia, piata tinta, modelul de business – cum facem bani –, competitia cu diferentiatorul clar, echipa – „spuneti ceva despre voi”) · **1 min demo tehnic INREGISTRAT (video)** · 2 min Q&A, inclusiv intrebari tehnice. **Nu ne putem conecta laptopul la proiector**, deci video-ul trebuie gata dinainte. Detalii in sectiunea 10 |
 | Design | Figma intai (maxim 2,5 ore), apoi cod |
 | Accent in pitch | 40% dovada conformitatii · 35% contract inteles in sub 60 de secunde (masurat) · 25% date corecte si explicate |
 | Revizuire ceruta de client | Cererea trece in `manual_review` pana decide operatorul; SECCI si semnarea sunt blocate pana atunci (21.11, 03:00) |
@@ -184,7 +185,7 @@ ZERO4 e intentionat in demo: il da un creditor partener (tert), pe mai mult de 5
 - Ce ramane = venit − cheltuieli − alte rate − rata noua. **Sub 0 → respins; intre 0 si 500 lei → revizuire umana** (prag ales de noi, presupunere).
 - **2 sau mai multe facturi intarziate peste 30 de zile in ultimele 12 luni → revizuire umana**, niciodata respingere automata.
 - Lipsa istoricului (prepaid) nu se pune ca minus.
-- **Alte rate = maximul dintre ce declara clientul si Biroul de Credit (simulat).** Daca Biroul arata mai mult, motivul afisat spune asta.
+- **Alte rate = maximul dintre ce declara clientul, Biroul de Credit (simulat) si ratele platite lunar vazute in contul bancar** (Open Banking simulat, doar cu acordul `bank_data`; prinde BNPL / rate la magazin / IFN care nu raporteaza la Birou; citim doar suma lunara, nu tranzactiile). Daca Biroul sau banca arata mai mult, motivul afisat spune sursa folosita (`BUREAU_HIGHER` / `BANK_INSTALLMENTS_HIGHER`). Date demo: banca = Birou pentru toti, **Mihai 750 lei** (Birou 650 + 100 BNPL) → ramane in revizuire, DTI 24%, raman ~1.181 lei (engine-v3, 21.11, 15:10).
 - **Venit = minimul dintre declarat si contul bancar; cheltuieli = maximul** (Open Banking simulat, doar cu acordul `bank_data`). Daca banca arata alt venit/alte cheltuieli, motivul afisat spune asta. **Fara acord sau fara date → revizuire umana** (`INCOME_NOT_VERIFIED` / `BANK_DATA_UNAVAILABLE`); respingerea ramane automata daca nici cifrele declarate nu ajung (engine-v2, 21.11, 11:45).
 - Pragurile exacte: 40,00% trece, peste 40% e respins; daca raman exact 500 lei, e aprobat.
 
@@ -261,6 +262,14 @@ Trimis lui David la 11:50. Ecranele 3 si 4.
 - **6b `GET /applications/{id}`** – `decision.verification`, aceeasi forma (pe evaluarile vechi: `used_lei` = declarat).
 - **16 `GET /backoffice/reviews`** – `assessment` are in plus `bank_data_used`, `income_verified_lei`, `income_used_lei`, `expenses_verified_lei`, `expenses_used_lei`; back-office-ul arata „Venit neverificat: cere un document” cand lipseste verificarea.
 - Jurnal: `assessment_done` are in payload `income_verification` (`open_banking_simulated` / `no_consent` / `unavailable`) si `engine_version: "engine-v2"`.
+
+### Schimbari v0.4 (21.11, 15:40) – alte rate vazute in contul bancar (engine-v3)
+Fara schimbari in ce trimite front-ul. Ecranul 4 si back-office-ul le-am actualizat noi (PR `feat/backend-bank-installments`, cu acordul lui Bogdan).
+- **6 `POST /applications/{id}/assessment`** si **6b `GET /applications/{id}`**: `verification.other_installments` are in plus `bank_lei` – ratele platite lunar vazute in cont; `null` fara acord bancar si pe evaluarile vechi. `used_lei` = max(declarat, Birou, banca).
+  Mihai: `{ "declared_lei": 650, "bureau_lei": 650, "bank_lei": 750, "used_lei": 750 }`.
+- Cod nou in `reasons`: `BANK_INSTALLMENTS_HIGHER` (banca arata mai mult decat declarat si decat Biroul). Mihai: `BILLS_LATE, BANK_INSTALLMENTS_HIGHER, INCOME_VERIFIED, DTI_OK`.
+- **16 `GET /backoffice/reviews`**: `assessment.other_installments_bank_lei`.
+- Jurnal: `assessment_done` are `engine_version: "engine-v3"`.
 
 ### Exemple de raspuns (mock-uri, pentru Ana)
 
@@ -434,7 +443,16 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 
 ---
 
-## 10. Pitch (in romana)
+## 10. Prezentarea (EN, 6 minute, format impus de organizatori la 21.11, 13:34)
+
+**Formatul (strict cronometrat):**
+1. **3 min – pitch de business** (slide-uri): problema · solutia · piata tinta · modelul de business (cum facem bani) · competitia + diferentiatorul clar · echipa (ceva despre noi).
+2. **1 min – demo tehnic inregistrat** (video, pregatit dinainte; nu avem laptop la proiector). Scenariul Ana + Mihai trebuie comprimat in ~60 s, montat.
+3. **2 min – Q&A**, inclusiv tehnic: arhitectura, securitatea, jurnalul cu hash, DAE, verificarea venitului, ce e simulat – raspunsuri pregatite (ghid, cap. 13), nu slide separat obligatoriu.
+
+**Ce lipseste fata de planul vechi (de decis impreuna, nu de inventat):** modelul de business concret (cine plateste modulul si cum), competitia (cine face azi rate embedded/BNPL pentru telco in Romania) si diferentiatorul, piata tinta cu cifre cu sursa (avem: ~74% SIM-uri pe abonament, ANCOM 2024).
+
+Planul vechi de slide-uri (sursa de continut, de comprimat in 3 minute):
 
 | Slide | Ce spunem | Cine |
 |---|---|---|
@@ -450,10 +468,11 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 
 ## 11. De aflat de la organizatori si mentori
 
-- Cat dureaza pitch-ul si cat Q&A-ul?
-- Ce se trimite la 13:30: deck PDF, link la repo, link la demo, video?
-- Demo live sau inregistrat?
-- Pe proiector se poate folosi propriul laptop?
+- ~~Cat dureaza pitch-ul si cat Q&A-ul?~~ → 3 min business + 1 min demo + 2 min Q&A (13:34).
+- Ce se trimite la 13:30: deck PDF, link la repo, link la demo, video? (inca de aflat; video-ul de 1 minut e sigur necesar)
+- ~~Demo live sau inregistrat?~~ → **inregistrat** (13:34).
+- ~~Pe proiector se poate folosi propriul laptop?~~ → **nu** (13:34).
+- In ce format se preda video-ul (fisier pe stick, link, trimis inainte)?
 - Pentru mentorul Neofin: e corect argumentul ca ratele 0% pe factura intra sub CCD2 dupa transpunere?
 - Pentru mentorul Neofin: daca clientul se retrage din credit, ce se intampla cu telefonul (il plateste integral sau il returneaza)? Pana aflam, in demo afisam doar suma de returnat catre creditor.
 
@@ -482,7 +501,7 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 | 2 | Avertisment „Banii imprumutati costa bani” | 8 | Banner pe ecranele 1–2 | `ad_warning_shown` | David + API | P0 |
 | 3 | Informare cand oferta e personalizata automat | 13 | Eticheta + „De ce vad asta?” | `personalised_offer_disclosed` | David | P1 |
 | 4 | Evaluare pe venit, cheltuieli, obligatii; fara date sensibile (art. 18(3)) sau social media (considerentul 55) | 18(3) | API accepta doar campuri din lista alba; test automat pica daca apare un camp interzis | `assessment_done` (hash-ul datelor, nu datele) | Bogdan | P0 |
-| 5 | Datele declarate se verifica (surse interne si externe) | 18(3) | Venit = min(declarat, cont bancar), cheltuieli = max(declarat, cont bancar) – Open Banking simulat, cu acord explicit; alte rate = max(declarat, Biroul de Credit simulat). Fara acord bancar → revizuire umana, nu aprobare automata | `consent_given` (bank_data), `assessment_done` (`income_verification`) | Bogdan | P0 |
+| 5 | Datele declarate se verifica (surse interne si externe) | 18(3) | Venit = min(declarat, cont bancar), cheltuieli = max(declarat, cont bancar) – Open Banking simulat, cu acord explicit; alte rate = max(declarat, Biroul de Credit simulat, ratele vazute in cont). Fara acord bancar → revizuire umana, nu aprobare automata | `consent_given` (bank_data), `assessment_done` (`income_verification`) | Bogdan | P0 |
 | 6 | Credit doar daca evaluarea e pozitiva; nu doar pe istoricul de credit | 18(6), 18(11) | Grad de indatorare max. 40% + rest dupa rate; prepaid fara istoric nu e penalizat | `assessment_done` | Bogdan | P0 |
 | 7 | Decizie automata: explicatie, interventie umana, contestare | 18(8) + GDPR 22 | Ecran 4 (motive + buton) + coada din back-office | `human_review_requested`, `human_review_resolved` | Ambii | P0 |
 | 8 | La respingere: informare imediata + consiliere, fara alt credit oferit | 18(9) | Ecran 4, starea „Respins” | `debt_advice_shown` | Ambii | P1 |
@@ -536,9 +555,10 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 
 | Idee | Decizie | De ce |
 |---|---|---|
-| A 3-a cifra din banca: „rate platite lunar, vazute in cont” (prinde BNPL / rate la magazin / IFN care nu raporteaza la Birou). Alte rate = max(declarat, Birou, banca) | Roadmap; in cod doar daca ramane timp dupa integrare (~1 ora) | Verificare in plus, nu colectare in plus |
+| A 3-a cifra din banca: „rate platite lunar, vazute in cont” (prinde BNPL / rate la magazin / IFN care nu raporteaza la Birou). Alte rate = max(declarat, Birou, banca) | **FACUT (21.11, 15:40, engine-v3)** – vezi sectiunile 5 si 6 (v0.4) | Verificare in plus, nu colectare in plus |
 | „Toate datele bancare posibile” | **Nu** | CCD2 art. 18(3) + GDPR: doar date necesare si proportionale; tranzactiile complete dezvaluie date interzise (sanatate, religie, politic). Argument de pitch: „luam doar ce trebuie” |
 | Recomandari de tip „ai venit mare, ia o rata mai mare / un telefon mai scump” sau „respins pe 12 luni, ia pe 24” | **Nu** | Upselling de credit (art. 17), risc de supra-indatorare; recomandarea personalizata = servicii de consiliere (art. 16) + informare (art. 13) |
-| Recomandare prudenta: „daca iti permiti rata pe 12 luni, platesti cu X lei mai putin in total decat pe 24” | Roadmap (pitch) | Reduce costul, in interesul clientului; cere ecran nou la David |
+| Scena „rata ratata” (art. 35): la ziua 35 prima rata e neplatita → card bland cu amanare o luna / reesalonare / vorbeste cu un om, totul in jurnal | Explicata lui Bogdan (21.11, 15:15): ~2–3 ore noi + ~1 ora David, ~5 s in video. Recomandare: doar in pitch („ce urmeaza”) si la Q&A. **Decizia finala: deschisa** | Art. 35 cere masuri de toleranta inainte de executare |
+| Recomandare prudenta: „daca iti permiti rata pe 12 luni, platesti cu X lei mai putin in total decat pe 24” | Roadmap (pitch); **nu o implementam** (Bogdan, 21.11, 15:10) | Reduce costul, in interesul clientului; cere ecran nou la David |
 
 Detaliile tehnice, regulile de lucru si pasii urmatori exacti sunt in `PREDARE_CLAUDE.md` (in proiect si in `docs/`).

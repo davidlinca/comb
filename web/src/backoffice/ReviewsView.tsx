@@ -187,7 +187,7 @@ function ReviewCase({ review: r, api, busy, onOpenLedger, onResolved }: CaseProp
               <Metric
                 label="Alte rate folosite"
                 value={fmtLei(a.other_installments_used_lei)}
-                hint={`declarat ${fmtLei(a.other_installments_declared_lei)}, Birou ${fmtLei(a.other_installments_bureau_lei)}`}
+                hint={`declarat ${fmtLei(a.other_installments_declared_lei)}, Birou ${fmtLei(a.other_installments_bureau_lei)}${a.other_installments_bank_lei == null ? '' : `, banca ${fmtLei(a.other_installments_bank_lei)}`}`}
               />
             </dl>
           </div>

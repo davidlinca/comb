@@ -160,7 +160,7 @@ r.post('/applications/:id/assessment', async (c) => {
     db.from('credit_bureau_records').select('other_installments_lei').eq('customer_id', app.customer_id).maybeSingle(),
     // Open Banking (simulat): citit DOAR cu acordul bank_data
     bankConsent
-      ? db.from('bank_account_insights').select('net_income_lei, essential_expenses_lei').eq('customer_id', app.customer_id).maybeSingle()
+      ? db.from('bank_account_insights').select('net_income_lei, essential_expenses_lei, installments_seen_lei').eq('customer_id', app.customer_id).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
   const bankStatus: 'used' | 'no_consent' | 'unavailable' = !bankConsent ? 'no_consent' : bank ? 'used' : 'unavailable';
@@ -185,6 +185,7 @@ r.post('/applications/:id/assessment', async (c) => {
     new_installment_lei: app.installment_lei, late_bills_12m: late, history_status: historyStatus,
     bank_income_lei: bank ? Number(bank.net_income_lei) : null,
     bank_expenses_lei: bank ? Number(bank.essential_expenses_lei) : null,
+    bank_installments_lei: bank ? Number(bank.installments_seen_lei) : null,
     bank_status: bankStatus,
   });
   const vf = res.verification;
@@ -193,7 +194,8 @@ r.post('/applications/:id/assessment', async (c) => {
     application_id: app.id, net_income_lei: inp.net_income_lei, monthly_expenses_lei: inp.monthly_expenses_lei,
     other_installments_declared_lei: inp.other_installments_lei,
     other_installments_bureau_lei: Number(bureau?.other_installments_lei ?? 0),
-    other_installments_used_lei: res.metrics.other_installments_used_lei, new_installment_lei: app.installment_lei,
+    other_installments_used_lei: res.metrics.other_installments_used_lei, other_installments_bank_lei: vf.other_installments.bank_lei,
+    new_installment_lei: app.installment_lei,
     late_bills_12m: late, billing_history_used: historyStatus === 'used', dti_pct: res.metrics.dti_pct,
     residual_lei: res.metrics.residual_lei, decision: res.decision, reasons: res.reasons, automated: true,
     engine_version: res.engine_version,
@@ -237,7 +239,7 @@ function verificationFromRow(a: Record<string, unknown>) {
     expenses: { declared_lei: Number(a.monthly_expenses_lei), verified_lei: num(a.expenses_verified_lei), used_lei: num(a.expenses_used_lei) ?? Number(a.monthly_expenses_lei) },
     other_installments: {
       declared_lei: Number(a.other_installments_declared_lei), bureau_lei: Number(a.other_installments_bureau_lei),
-      used_lei: Number(a.other_installments_used_lei),
+      bank_lei: num(a.other_installments_bank_lei), used_lei: Number(a.other_installments_used_lei),
     },
   };
 }
@@ -248,7 +250,7 @@ r.get('/applications/:id', async (c) => {
   const [cons, asmt, rev, secci, agr] = await Promise.all([
     db.from('consents').select('purpose, granted').eq('application_id', app.id),
     db.from('assessments').select(`decision, automated, reasons, dti_pct, residual_lei, late_bills_12m,
-      net_income_lei, monthly_expenses_lei, other_installments_declared_lei, other_installments_bureau_lei, other_installments_used_lei,
+      net_income_lei, monthly_expenses_lei, other_installments_declared_lei, other_installments_bureau_lei, other_installments_used_lei, other_installments_bank_lei,
       bank_data_used, income_verified_lei, income_used_lei, expenses_verified_lei, expenses_used_lei`).eq('application_id', app.id).maybeSingle(),
     db.from('human_reviews').select('status, requested_by, requested_at, resolved_at').eq('application_id', app.id)
       .order('requested_at', { ascending: false }).limit(1).maybeSingle(),
