@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 12:15 (verificarea venitului prin Open Banking simulat – contract v0.3 in sectiunea 6, regula in sectiunea 5, checklist 4–5). Versiunea 11:30: pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 13:05 (adaugata sectiunea 16: idei de roadmap de la mentori). Versiunea 12:15: verificarea venitului prin Open Banking simulat – contract v0.3 in sectiunea 6, regula in sectiunea 5, checklist 4–5). Versiunea 11:30: pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -530,5 +530,14 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 | Arhivare cereri demo | migratia `20261121091630 application_archive` aplicata, PR merge-uit, arhivarea rulata |
 | Verificarea venitului (Open Banking simulat) | migratia `20261121094520 bank_verification` aplicata + date bancare pentru cei 63 de clienti; motor `engine-v2` (33/33), API si back-office scrise; de facut: PR + deploy + smoke; David: casuta 3 + blocul „Ce am verificat” |
 | Arhitectura | `docs/ARHITECTURA.md`: diagrame, toate rutele, starile cererii, exemplul Ana, jurnalul, securitatea |
+
+## 16. Idei de roadmap (din discutiile cu mentorii, 21.11, 13:00) – pentru pitch („ce urmeaza”), NU in cod acum
+
+| Idee | Decizie | De ce |
+|---|---|---|
+| A 3-a cifra din banca: „rate platite lunar, vazute in cont” (prinde BNPL / rate la magazin / IFN care nu raporteaza la Birou). Alte rate = max(declarat, Birou, banca) | Roadmap; in cod doar daca ramane timp dupa integrare (~1 ora) | Verificare in plus, nu colectare in plus |
+| „Toate datele bancare posibile” | **Nu** | CCD2 art. 18(3) + GDPR: doar date necesare si proportionale; tranzactiile complete dezvaluie date interzise (sanatate, religie, politic). Argument de pitch: „luam doar ce trebuie” |
+| Recomandari de tip „ai venit mare, ia o rata mai mare / un telefon mai scump” sau „respins pe 12 luni, ia pe 24” | **Nu** | Upselling de credit (art. 17), risc de supra-indatorare; recomandarea personalizata = servicii de consiliere (art. 16) + informare (art. 13) |
+| Recomandare prudenta: „daca iti permiti rata pe 12 luni, platesti cu X lei mai putin in total decat pe 24” | Roadmap (pitch) | Reduce costul, in interesul clientului; cere ecran nou la David |
 
 Detaliile tehnice, regulile de lucru si pasii urmatori exacti sunt in `PREDARE_CLAUDE.md` (in proiect si in `docs/`).
