@@ -221,5 +221,11 @@ ok('fara acord bancar -> ratele din banca nu se folosesc (bank_lei null)', asN.j
 const stM2 = await call(mihai, 'GET', `/applications/${appM.json?.application_id}`);
 ok('GET /applications/:id Mihai -> bank_lei 750 salvat', stM2.json?.decision?.verification?.other_installments?.bank_lei === 750, JSON.stringify(stM2.json?.decision?.verification?.other_installments));
 
+console.log('Cardul „Cererea ta” (GET /applications/current):');
+const curA = await call(ana, 'GET', '/applications/current');
+ok('Ana -> ultima cerere in curs (cea fara acord bancar, in analiza)', curA.json?.application?.application_id === aN.json?.application_id &&
+  curA.json?.application?.next_step === 'wait_review' && curA.json?.application?.device_name === 'Nova 3', JSON.stringify(curA.json));
+if (OP_PASS) ok('Ioana -> respinsa dupa revizuire nu e „in curs”', (await call(ioana, 'GET', '/applications/current')).json?.application?.application_id !== idI);
+
 console.log(`\nRezultat: ${pass} OK, ${fail} FAIL`);
 console.log(`Cererea Anei: ${id} | contract: ${agrId}`);
