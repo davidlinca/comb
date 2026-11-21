@@ -50,7 +50,7 @@ export type Application = {
   application_id: string;
   status: string;
   next_step: NextStep;
-  offer: { sku: string; product_id: string; term_months: number; installment_lei: number; installments: number; total_payable_lei: number; total_cost_lei: number; apr_pct: number } | null;
+  offer: { sku: string; product_id: string; term_months: number; installment_lei: number; installments: number; total_credit_lei: number; total_payable_lei: number; total_cost_lei: number; nominal_rate_pct: number; apr_pct: number } | null;
   decision: Decision | null;
   debt_advice: { text: string; contact: string } | null;
   review: { status: string; requested_by: string } | null;
@@ -70,4 +70,35 @@ export const api = {
     request<Decision>('POST', `/applications/${id}/assessment`, b),
   humanReview: (id: string, message?: string) =>
     request<{ status: string; eta_text: string }>('POST', `/applications/${id}/human-review`, message ? { message } : {}),
+};
+
+// ---- ecranele 5–6 ----
+export type Secci = {
+  secci_version: string;
+  key: { total_credit_lei: number; installment_lei: number; installments: number; last_installment_lei?: number; total_payable_lei: number; total_cost_lei: number; apr_pct: number; nominal_rate_pct: number; rate_type: string; withdrawal_days: number };
+  creditor: { name: string; address: string };
+  intermediary: { name: string };
+  late_payment: string;
+  early_repayment: string;
+  schedule: { n: number; due_date: string; amount_lei: number }[];
+};
+export type SignResult = { agreement_id: string; signed_at: string; first_installment_due: string; withdrawal_deadline: string; reminder_window: { from: string; to: string } | null };
+export type Agreement = {
+  agreement_id: string; application_id: string; status: 'active' | 'withdrawn' | string; signed_at: string;
+  first_installment_due: string; withdrawal_deadline: string; can_withdraw: boolean; today: string; demo_offset_days: number;
+  reminder_window: { from: string; to: string } | null;
+  reminders: { sent_at: string; channel: string; text: string }[];
+  withdrawal: { withdrawn_at: string; amount_to_return_lei: number; return_by: string } | null;
+};
+export type WithdrawResult = { status: string; amount_to_return_lei: number; principal_lei: number; interest_lei: number; days_used: number; return_by: string; text: string };
+
+export const api2 = {
+  secci: (id: string) => request<Secci>('GET', `/applications/${id}/secci`),
+  secciViewed: (id: string, b: { time_on_screen_ms: number; details_opened: boolean }) => request<{ ok: true }>('POST', `/applications/${id}/secci/viewed`, b),
+  secciEmail: (id: string) => request<{ ok: true; sent_at: string; channel: string }>('POST', `/applications/${id}/secci/email`),
+  otp: (id: string) => request<{ otp_demo_code: string; expires_in_s: number }>('POST', `/applications/${id}/otp`),
+  sign: (id: string, otp: string) => request<SignResult>('POST', `/applications/${id}/sign`, { otp }),
+  agreement: (aid: string) => request<Agreement>('GET', `/agreements/${aid}`),
+  withdraw: (aid: string) => request<WithdrawResult>('POST', `/agreements/${aid}/withdraw`),
+  timeTravel: (aid: string, days: number) => request<{ today: string }>('POST', '/demo/time-travel', { agreement_id: aid, days }),
 };
