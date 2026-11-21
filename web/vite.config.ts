@@ -4,6 +4,12 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      // bibliotecile separat de codul aplicației: se descarcă în paralel și rămân în cache între deploy-uri
+      output: { manualChunks: { react: ['react', 'react-dom', 'react-router', 'react-router-dom'], supabase: ['@supabase/supabase-js'] } },
+    },
+  },
   server: {
     port: 5173,
     // Calea locală a proiectului conține ":" (BANK:RUPT), care strică verificarea fs.allow din Vite.

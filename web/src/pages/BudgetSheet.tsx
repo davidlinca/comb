@@ -1,15 +1,24 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+// Pasul 2 · Buget. Trimitem DOAR cele trei sume + acordurile; apoi „Verificăm cererea” cu bife pe rând.
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useLoaderData, useNavigate, useOutletContext } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
-import { parseLei } from '../lib/format';
-import { Btn, ErrorNote, Sheet, SheetHeader } from '../components/ui';
-import { IconCheck, IconHourglass, IconInfo } from '../components/Icons';
-import Backdrop from '../components/Backdrop';
+import { groupDigits, parseLei } from '../lib/format';
+import { withTransition } from '../lib/motion';
+import type { budgetLoader, LoaderData } from '../loaders';
+import type { SheetCtx } from '../components/SheetShell';
+import { CheckDot, IconLoading, IconTick } from '../components/Icons';
+import {
+  Btn, Card, Checkbox, ErrorNote, MoneyField, Notice, SheetBody, SheetFoot, SheetHeader, SheetTitle, SheetTop, Spinner, TwoButtons, cx,
+} from '../components/ui';
 
 type FieldKey = 'net_income_lei' | 'monthly_expenses_lei' | 'other_installments_lei';
+type Errors = Partial<Record<FieldKey | 'privacy', string>>;
+const ORDER: FieldKey[] = ['net_income_lei', 'monthly_expenses_lei', 'other_installments_lei'];
 
 export default function BudgetSheet() {
-  const { id = '' } = useParams();
+  const { app } = useLoaderData() as LoaderData<typeof budgetLoader>;
+  const id = app.application_id;
+  const { close } = useOutletContext<SheetCtx>();
   const nav = useNavigate();
   const [income, setIncome] = useState('');
   const [expenses, setExpenses] = useState('');
@@ -18,20 +27,16 @@ export default function BudgetSheet() {
   const [bank, setBank] = useState(false);
   const [privacy, setPrivacy] = useState(false);
   const [bankWhy, setBankWhy] = useState(false);
-  const [errors, setErrors] = useState<Partial<Record<FieldKey | 'privacy', string>>>({});
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [errors, setErrors] = useState<Errors>({});
+  const [shake, setShake] = useState(0);
   const [formError, setFormError] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
-  const firstInvalid = useRef<HTMLInputElement | null>(null);
-
-  // dacă cererea e deja evaluată (refresh, înapoi), mergem direct la rezultat
-  useEffect(() => {
-    api.application(id).then((a) => {
-      if (a.next_step !== 'consents' && a.next_step !== 'assessment') nav(`/a/${id}/rezultat`, { replace: true });
-    }).catch(() => {});
-  }, [id, nav]);
+  const [phase, setPhase] = useState<'form' | 'checking'>('form');
+  const [apiDone, setApiDone] = useState(false);
+  const refs = useRef<Partial<Record<FieldKey | 'privacy', HTMLInputElement | null>>>({});
 
   function validate() {
-    const e: typeof errors = {};
+    const e: Errors = {};
     const i = parseLei(income), x = parseLei(expenses), o = parseLei(other);
     if (i === null || Number.isNaN(i) || i <= 0) e.net_income_lei = 'Introdu venitul net lunar.';
     if (x === null || Number.isNaN(x)) e.monthly_expenses_lei = 'Introdu cheltuielile lunare.';
@@ -45,9 +50,14 @@ export default function BudgetSheet() {
     setFormError(null);
     const { e, i, x, o } = validate();
     setErrors(e);
-    if (Object.keys(e).length) { requestAnimationFrame(() => firstInvalid.current?.focus()); return; }
-    setChecking(true);
-    const started = Date.now();
+    if (Object.keys(e).length) {
+      setShake((s) => s + 1);
+      const first = [...ORDER, 'privacy' as const].find((k) => e[k]);
+      if (first) requestAnimationFrame(() => refs.current[first]?.focus());
+      return;
+    }
+    setApiDone(false);
+    withTransition(() => setPhase('checking'));
     try {
       await api.consents(id, { billing_history: billing, bank_data: bank, privacy_notice_read: privacy });
       try {
@@ -55,106 +65,106 @@ export default function BudgetSheet() {
       } catch (err) {
         if (!(err instanceof ApiError && err.code === 'ALREADY_ASSESSED')) throw err; // dublu-click = succes
       }
-      const wait = Math.max(0, 1600 - (Date.now() - started)); // timp să se citească pașii verificării
-      setTimeout(() => nav(`/a/${id}/rezultat`, { replace: true }), wait);
+      setApiDone(true);
     } catch (err) {
-      setChecking(false);
-      if (err instanceof ApiError) {
-        const fe: typeof errors = {};
-        err.fields.forEach((f) => { if (f === 'net_income_lei' || f === 'monthly_expenses_lei' || f === 'other_installments_lei') fe[f] = err.message; });
-        if (Object.keys(fe).length) setErrors(fe); else setFormError(err.message);
-      } else setFormError('A apărut o eroare. Încearcă din nou.');
+      const fe: Errors = {};
+      if (err instanceof ApiError) err.fields.forEach((f) => { if ((ORDER as string[]).includes(f)) fe[f as FieldKey] = err.message; });
+      withTransition(() => {
+        setPhase('form');
+        if (Object.keys(fe).length) setErrors(fe);
+        else setFormError(err instanceof ApiError ? err.message : 'A apărut o eroare. Încearcă din nou.');
+      });
     }
   }
 
-  const refFor = (k: FieldKey) => (el: HTMLInputElement | null) => {
-    if (!el) return;
-    const order: FieldKey[] = ['net_income_lei', 'monthly_expenses_lei', 'other_installments_lei'];
-    const first = order.find((f) => errors[f]);
-    if (first === k) firstInvalid.current = el;
-  };
+  if (phase === 'checking') {
+    return <Checking billing={billing} bank={bank} ready={apiDone}
+      onFinished={() => nav(`/a/${id}/rezultat`, { replace: true, viewTransition: true })} />;
+  }
 
-  if (checking) return <><Backdrop /><Checking billing={billing} bank={bank} /></>;
+  const filled = [income, expenses, other].filter(Boolean).length + (privacy ? 1 : 0);
+  const money = (k: FieldKey, setter: (v: string) => void) => (v: string) => {
+    setter(groupDigits(v));
+    if (errors[k]) setErrors((e) => ({ ...e, [k]: undefined }));
+  };
 
   return (
     <>
-      <Backdrop />
-      <Sheet label="Verificăm bugetul" tall>
-        <SheetHeader step={1} onClose={() => nav('/shop')} />
-        <h2 className="text-[26px] font-bold tracking-tight">Verificăm bugetul</h2>
-        <form onSubmit={submit} noValidate className="flex flex-1 flex-col gap-5">
+      <SheetTop><SheetHeader step={1} progress={1.15 + filled * 0.1} onClose={close} /></SheetTop>
+      <form id="budget" onSubmit={submit} noValidate className="contents">
+        <SheetBody>
+          <SheetTitle>Verificăm bugetul</SheetTitle>
           <div className="flex flex-col gap-4">
-            <Money id="inc" label="Venit net lunar" hint="După taxe." value={income} onChange={setIncome} placeholder="ex. 5.200" error={errors.net_income_lei} inputRef={refFor('net_income_lei')} />
-            <Money id="exp" label="Cheltuieli lunare" hint="Chirie, utilități, mâncare, transport." value={expenses} onChange={setExpenses} placeholder="ex. 2.100" error={errors.monthly_expenses_lei} inputRef={refFor('monthly_expenses_lei')} />
-            <Money id="oth" label="Rate pe care le plătești deja" value={other} onChange={setOther} placeholder="0 dacă nu ai" error={errors.other_installments_lei} inputRef={refFor('other_installments_lei')} />
+            <MoneyField id="inc" label="Venit net lunar" hint="După taxe." value={income} onChange={money('net_income_lei', setIncome)}
+              placeholder="ex. 5.200" error={errors.net_income_lei} shakeKey={shake} inputRef={(el) => { refs.current.net_income_lei = el; }} />
+            <MoneyField id="exp" label="Cheltuieli lunare" hint="Chirie, utilități, mâncare, transport." value={expenses} onChange={money('monthly_expenses_lei', setExpenses)}
+              placeholder="ex. 2.100" error={errors.monthly_expenses_lei} shakeKey={shake} inputRef={(el) => { refs.current.monthly_expenses_lei = el; }} />
+            <MoneyField id="oth" label="Rate pe care le plătești deja" value={other} onChange={money('other_installments_lei', setOther)}
+              placeholder="0 dacă nu ai" error={errors.other_installments_lei} shakeKey={shake} inputRef={(el) => { refs.current.other_installments_lei = el; }} />
           </div>
 
-          <fieldset className="flex flex-col gap-3.5 border-t border-line pt-5">
+          <fieldset className="flex flex-col gap-2 border-t border-stroke pt-5">
             <legend className="sr-only">Acorduri</legend>
-            <Check checked={billing} onChange={setBilling}>Folosiți istoricul facturilor mele Telvia în evaluare. <span className="text-muted">Opțional</span></Check>
-            <div className="flex flex-col gap-2">
-              <Check checked={bank} onChange={setBank}>
-                Sunt de acord să fie citite veniturile și cheltuielile din contul meu bancar (Open Banking, simulat), doar pentru această evaluare.{' '}
-                <button type="button" onClick={(e) => { e.preventDefault(); setBankWhy((v) => !v); }} aria-expanded={bankWhy}
-                  className="font-semibold text-paper underline underline-offset-2">De ce?</button>
-              </Check>
-              {bankWhy && <p className="ml-9 rounded-xl bg-field px-3 py-2.5 text-[14px] text-muted">Legea ne cere să verificăm venitul. Dacă nu ești de acord, un coleg îți verifică venitul cu un alt document.</p>}
+            <Checkbox checked={billing} onChange={setBilling}>
+              Folosiți istoricul facturilor mele Telvia în evaluare. <span className="text-muted">Opțional</span>
+            </Checkbox>
+
+            <Checkbox checked={bank} onChange={setBank}>
+              Citiți veniturile și cheltuielile din contul meu bancar (Open Banking, simulat), doar pentru această evaluare.{' '}
+              <span className="text-muted">Opțional</span>{' '}
+              <InlineToggle open={bankWhy} onClick={() => setBankWhy((v) => !v)} controls="bank-why">De ce?</InlineToggle>
+            </Checkbox>
+            <div id="bank-why" className="reveal" data-open={bankWhy} inert={!bankWhy}>
+              <div><p className="mb-1 ml-9 rounded-xl bg-card px-3 py-2.5 text-[14px] leading-snug text-muted">Legea ne cere să verificăm venitul. Dacă nu ești de acord, un coleg îți verifică venitul cu un alt document.</p></div>
             </div>
-            <Check checked={privacy} onChange={(v) => { setPrivacy(v); if (v) setErrors((e) => ({ ...e, privacy: undefined })); }} invalid={!!errors.privacy}>
-              Am citit <a href="#nota" onClick={(e) => e.preventDefault()} className="font-semibold text-paper underline underline-offset-2">nota de informare</a> despre datele personale.
-            </Check>
-            {errors.privacy && <p role="alert" className="ml-9 text-[14px] font-medium text-danger">{errors.privacy}</p>}
+
+            <Checkbox checked={privacy} invalid={!!errors.privacy} describedBy={errors.privacy ? 'privacy-err' : undefined}
+              inputRef={(el) => { refs.current.privacy = el; }}
+              onChange={(v) => { setPrivacy(v); if (v) setErrors((e) => ({ ...e, privacy: undefined })); }}>
+              Am citit <InlineToggle open={noteOpen} onClick={() => setNoteOpen((v) => !v)} controls="privacy-note" bold>nota de informare</InlineToggle> despre datele personale.
+            </Checkbox>
+            <div id="privacy-note" className="reveal" data-open={noteOpen} inert={!noteOpen}>
+              <div>
+                <div className="mb-1 ml-9 flex flex-col gap-1.5 rounded-xl bg-card px-3 py-2.5 text-[14px] leading-snug text-muted">
+                  <p><span className="text-paper">Operator:</span> Credis IFN (demo), prin Telvia.</p>
+                  <p><span className="text-paper">Scop:</span> evaluarea bonității pentru această cerere de credit.</p>
+                  <p><span className="text-paper">Păstrare:</span> cât prevede legea; ai dreptul la acces, rectificare și opoziție.</p>
+                </div>
+              </div>
+            </div>
+            {errors.privacy && <p id="privacy-err" role="alert" className="ml-9 text-[13px] font-medium text-danger animate-fade-in">{errors.privacy}</p>}
           </fieldset>
 
-          <p className="flex gap-2.5 rounded-2xl border border-line px-4 py-3 text-[14px] leading-snug text-muted">
-            <IconInfo className="mt-0.5 size-4 shrink-0 text-paper" />
-            <span><span className="text-paper">Folosim doar aceste date, istoricul facturilor, contul bancar (dacă ești de acord) și Biroul de Credit, ca să vedem dacă îți permiți rata.</span> Nu folosim rețele sociale sau date despre sănătate.</span>
-          </p>
-
+          <Notice>
+            <p>Folosim doar aceste date, istoricul facturilor{bank ? ', contul bancar' : ''} și Biroul de Credit, ca să vedem dacă îți permiți rata.</p>
+            <p className="mt-1.5 text-muted">Nu folosim rețele sociale sau date despre sănătate.</p>
+          </Notice>
           {formError && <ErrorNote>{formError}</ErrorNote>}
-          <div className="mt-auto grid grid-cols-2 gap-2.5">
+        </SheetBody>
+        <SheetFoot>
+          <TwoButtons>
             <Btn type="button" variant="secondary" onClick={() => nav(-1)}>Înapoi</Btn>
             <Btn type="submit">Verifică</Btn>
-          </div>
-        </form>
-      </Sheet>
+          </TwoButtons>
+        </SheetFoot>
+      </form>
     </>
   );
 }
 
-function Money({ id, label, hint, value, onChange, placeholder, error, inputRef }: {
-  id: string; label: string; hint?: string; value: string; onChange: (v: string) => void; placeholder: string; error?: string; inputRef: (el: HTMLInputElement | null) => void;
-}) {
-  const desc = error ? `${id}-err` : hint ? `${id}-hint` : undefined;
+/** Buton în textul unei etichete (nu bifează checkbox-ul). */
+function InlineToggle({ open, onClick, controls, children, bold }: { open: boolean; onClick: () => void; controls: string; children: React.ReactNode; bold?: boolean }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-[15px] font-semibold">{label}</label>
-      <div className={`flex h-13 items-center gap-2 rounded-2xl border bg-field px-4 ${error ? 'border-danger' : 'border-field focus-within:border-muted'}`}>
-        <input id={id} ref={inputRef} inputMode="decimal" autoComplete="off" value={value} placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)} aria-invalid={!!error} aria-describedby={desc}
-          className="h-full min-w-0 flex-1 bg-transparent text-[17px] text-paper outline-none placeholder:text-subtle" />
-        <span className="text-[15px] text-muted">lei</span>
-      </div>
-      {error
-        ? <p id={`${id}-err`} className="flex items-center gap-1.5 text-[14px] font-medium text-danger"><IconInfo className="size-4" />{error}</p>
-        : hint && <p id={`${id}-hint`} className="text-[13px] text-muted">{hint}</p>}
-    </div>
+    <button type="button" aria-expanded={open} aria-controls={controls}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }}
+      className={cx('rounded text-paper underline decoration-paper/40 underline-offset-4 hover:decoration-paper', bold ? 'font-bold' : 'font-semibold')}>
+      {children}
+    </button>
   );
 }
 
-function Check({ checked, onChange, children, invalid }: { checked: boolean; onChange: (v: boolean) => void; children: ReactNode; invalid?: boolean }) {
-  return (
-    <label className="flex cursor-pointer items-start gap-3 text-[15px] leading-snug">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} aria-invalid={invalid || undefined} className="peer sr-only" />
-      <span aria-hidden className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-md border transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand ${checked ? 'border-brand bg-brand text-ink' : invalid ? 'border-danger bg-field' : 'border-graphite bg-field'}`}>
-        {checked && <IconCheck className="size-4" />}
-      </span>
-      <span>{children}</span>
-    </label>
-  );
-}
-
-function Checking({ billing, bank }: { billing: boolean; bank: boolean }) {
+/** „Verificăm cererea”: sursele se bifează pe rând; ultima doar după ce răspunde API-ul. */
+function Checking({ billing, bank, ready, onFinished }: { billing: boolean; bank: boolean; ready: boolean; onFinished: () => void }) {
   const items = [
     'Venit și cheltuieli',
     bank ? 'Contul bancar · Open Banking (simulat)' : null,
@@ -162,28 +172,55 @@ function Checking({ billing, bank }: { billing: boolean; bank: boolean }) {
     'Rate existente · Biroul de Credit',
   ].filter(Boolean) as string[];
   const [done, setDone] = useState(0);
+  const finish = useRef(onFinished);
+  finish.current = onFinished;
+
   useEffect(() => {
-    const t = setInterval(() => setDone((d) => Math.min(d + 1, items.length - 1)), 450);
-    return () => clearInterval(t);
-  }, [items.length]);
+    const limit = ready ? items.length : items.length - 1;
+    if (done >= limit) return;
+    const t = setTimeout(() => setDone((d) => d + 1), done === 0 ? 650 : 520);
+    return () => clearTimeout(t);
+  }, [done, ready, items.length]);
+
+  useEffect(() => {
+    if (done < items.length) return;
+    const t = setTimeout(() => finish.current(), 450);
+    return () => clearTimeout(t);
+  }, [done, items.length]);
+
+  const all = done >= items.length;
   return (
-    <Sheet label="Verificăm cererea">
-      <SheetHeader step={1} hideClose />
-      <div className="flex flex-col items-center gap-3 pt-2 text-center" aria-live="polite">
-        <span className="grid size-16 place-items-center rounded-full bg-field text-brand"><IconHourglass /></span>
-        <h2 className="text-[24px] font-bold">Verificăm cererea</h2>
-        <p className="text-[15px] text-muted">Durează câteva secunde.</p>
-      </div>
-      <ul className="flex flex-col gap-3 rounded-2xl border border-line p-4 text-[15px]">
-        {items.map((it, i) => (
-          <li key={it} className="flex items-center gap-3">
-            {i < done
-              ? <span className="grid size-6 place-items-center rounded-full bg-brand text-ink"><IconCheck className="size-3.5" /></span>
-              : <span className="size-6 animate-spin rounded-full border-[3px] border-graphite border-t-brand motion-reduce:animate-none" />}
-            {it}
-          </li>
-        ))}
-      </ul>
-    </Sheet>
+    <>
+      <SheetTop><SheetHeader step={1} progress={1.55 + (done / items.length) * 0.45} /></SheetTop>
+      <SheetBody className="pb-2">
+        <div className="flex flex-col items-center gap-3 pt-2 text-center">
+          <span aria-hidden className="grid size-16 place-items-center rounded-full bg-brand text-ink animate-pop">
+            {all ? <IconTick className="size-8" animate /> : <IconLoading className="size-8 animate-spin [animation-duration:1.6s]" />}
+          </span>
+          <div className="flex flex-col gap-1">
+            <SheetTitle center>{all ? 'Gata, am verificat' : 'Verificăm cererea'}</SheetTitle>
+            <p className="text-[15px] text-muted">Durează câteva secunde.</p>
+          </div>
+        </div>
+        <Card className="px-4 py-2">
+          <ul aria-label="Ce verificăm" className="flex flex-col">
+            {items.map((it, i) => {
+              const ok = i < done;
+              return (
+                <li key={it} className="flex min-h-11 items-center gap-3 text-[15px] animate-fade-up" style={{ animationDelay: `${i * 70}ms` }}>
+                  <span className="grid size-[22px] place-items-center">
+                    {ok ? <CheckDot className="size-[22px]" pop /> : <Spinner className="size-[18px] text-brand" />}
+                  </span>
+                  <span className={cx('transition-colors duration-300', ok ? 'text-paper' : 'text-muted')}>{it}</span>
+                  <span className="sr-only">{ok ? ': verificat' : ': în curs'}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+        <p className="sr-only" aria-live="polite">{all ? 'Verificarea s-a încheiat.' : `Verificat ${done} din ${items.length}.`}</p>
+      </SheetBody>
+      <SheetFoot><p className="text-center text-[13px] text-muted">Rezultatul apare imediat.</p></SheetFoot>
+    </>
   );
 }

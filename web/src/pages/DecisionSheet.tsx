@@ -1,117 +1,138 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { api, ApiError, type Application, type Verification, type VerifiedLine } from '../lib/api';
+// Pasul 3 · Rezultat: aprobat / în analiză / respins, cu motivele din API afișate exact cum vin.
+import { useEffect, useRef, useState } from 'react';
+import { useLoaderData, useLocation, useNavigate, useNavigation, useOutletContext } from 'react-router-dom';
+import { api, ApiError, type Verification, type VerifiedLine } from '../lib/api';
 import { lei, leiInt } from '../lib/format';
-import { Btn, ErrorNote, Sheet, SheetHeader } from '../components/ui';
-import { IconAlert, IconArrow, IconCheck, IconChevron, IconClock, IconInfo, IconParty } from '../components/Icons';
-import Backdrop from '../components/Backdrop';
+import { useToast } from '../lib/toast';
+import type { decisionLoader, LoaderData } from '../loaders';
+import type { SheetCtx } from '../components/SheetShell';
+import { CheckDot, IconAlert, IconClock, IconParty, IconUserQuestion } from '../components/Icons';
+import {
+  ArrowLink, Btn, Card, Collapse, ErrorNote, SheetBody, SheetFoot, SheetHeader, SheetTop, StatusHead, TwoButtons,
+} from '../components/ui';
 
 type View = 'approved' | 'review' | 'rejected';
 
-// Iconita fiecarui motiv dupa codul din API (engine-v2): rosu doar ce a dus la respingere.
+// Iconița fiecărui motiv după codul din API (engine-v2): roșu doar ce a dus la respingere.
 const REJECT_CODES = new Set(['INCOME_MISSING', 'DTI_HIGH', 'RESIDUAL_NEGATIVE']);
 const REVIEW_CODES = new Set(['RESIDUAL_LOW', 'BILLS_LATE', 'INCOME_NOT_VERIFIED', 'BANK_DATA_UNAVAILABLE']);
-const ADJUST_CODES = new Set(['INCOME_VERIFIED_LOWER', 'EXPENSES_VERIFIED_HIGHER', 'BUREAU_HIGHER']);
+const ADJUST_CODES = new Set(['INCOME_VERIFIED_LOWER', 'EXPENSES_VERIFIED_HIGHER', 'BUREAU_HIGHER', 'BANK_INSTALLMENTS_HIGHER']);
 
 function ReasonIcon({ code }: { code: string }) {
-  if (REJECT_CODES.has(code)) return <IconAlert className="mt-0.5 size-5 shrink-0 text-danger" />;
-  if (REVIEW_CODES.has(code)) return <IconClock className="mt-0.5 size-5 shrink-0 text-brand" />;
-  if (ADJUST_CODES.has(code)) return <IconInfo className="mt-0.5 size-5 shrink-0 text-muted" />;
-  return <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-brand text-ink"><IconCheck className="size-3" /></span>;
+  if (REJECT_CODES.has(code)) return <IconAlert className="size-5 text-danger" />;
+  if (REVIEW_CODES.has(code)) return <IconClock className="size-5 text-brand" />;
+  if (ADJUST_CODES.has(code)) return <IconAlert className="size-5 text-muted" />;
+  return <CheckDot className="size-[18px]" />;
 }
 
 export default function DecisionSheet() {
-  const { id = '' } = useParams();
+  const { app } = useLoaderData() as LoaderData<typeof decisionLoader>;
+  const id = app.application_id;
+  const { close } = useOutletContext<SheetCtx>();
   const nav = useNavigate();
-  const [app, setApp] = useState<Application | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { pathname } = useLocation();
+  const navigation = useNavigation();
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const a = await api.application(id);
-      if (a.next_step === 'consents' || a.next_step === 'assessment') { nav(`/a/${id}/buget`, { replace: true }); return; }
-      setApp(a); setError(null);
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Nu am putut încărca rezultatul.'); }
-  }, [id, nav]);
-  useEffect(() => { void load(); }, [load]);
-
-  async function askHuman() {
-    setBusy(true); setError(null);
-    try { await api.humanReview(id); await load(); }
-    catch (e) {
-      if (e instanceof ApiError && e.code === 'REVIEW_PENDING') await load();
-      else setError(e instanceof ApiError ? e.message : 'Cererea nu a putut fi trimisă.');
-    } finally { setBusy(false); }
-  }
-
-  if (!app) {
-    return (<><Backdrop /><Sheet label="Rezultat"><SheetHeader step={2} onClose={() => nav('/shop')} />
-      {error ? <ErrorNote>{error}</ErrorNote> : <p className="py-10 text-center text-[15px] text-muted">Se încarcă rezultatul…</p>}</Sheet></>);
-  }
+  const [error, setError] = useState<string | null>(null);
+  const action = useRef<'recheck' | 'human' | null>(null);
 
   const view: View = app.next_step === 'wait_review' ? 'review' : app.next_step === 'rejected' ? 'rejected' : 'approved';
   const d = app.decision;
   const reasons = d?.reasons ?? [];
   const offer = app.offer;
+  // După revizuirea umană, decizia finală e a specialistului; motivele rămân cele ale evaluării automate.
+  const byHuman = app.review?.status === 'approved' || app.review?.status === 'rejected';
+  const refreshing = navigation.state === 'loading' && navigation.location.pathname === pathname;
+
+  // reîncarcă rezultatul cu tranziție (aceeași rută → loaderul rulează din nou)
+  const refresh = () => nav(pathname, { replace: true, viewTransition: true });
+
+  useEffect(() => {
+    if (action.current === 'recheck' && view === 'review') toast('Încă în analiză. Te anunțăm prin SMS.');
+    if (action.current === 'human' && view === 'review') toast('Cererea a ajuns la un specialist.');
+    action.current = null;
+  }, [app, view, toast]);
+
+  async function askHuman() {
+    setBusy(true); setError(null);
+    try { await api.humanReview(id); action.current = 'human'; refresh(); }
+    catch (e) {
+      if (e instanceof ApiError && e.code === 'REVIEW_PENDING') { action.current = 'human'; refresh(); }
+      else setError(e instanceof ApiError ? e.message : 'Cererea nu a putut fi trimisă.');
+    } finally { setBusy(false); }
+  }
 
   const head = {
-    approved: { icon: <IconParty />, badge: 'bg-brand text-ink', title: 'Cerere aprobată', sub: offer ? `${offer.installments} × ${lei(offer.installment_lei)} · total ${lei(offer.total_payable_lei)}` : '' },
-    review: { icon: <IconClock />, badge: 'bg-field text-brand', title: 'Cerere în analiză', sub: 'Primești răspunsul în 24 de ore.' },
-    rejected: { icon: <IconAlert />, badge: 'bg-field text-danger', title: 'Nu putem aproba acum', sub: '' },
+    approved: { icon: <IconParty className="size-[30px]" />, title: 'Cerere aprobată', sub: offer ? `${offer.installments} × ${lei(offer.installment_lei)} · total ${lei(offer.total_payable_lei)}` : undefined },
+    review: { icon: <IconClock className="size-[30px]" />, title: 'Cerere în analiză', sub: 'Primești răspunsul în 24 de ore.' },
+    rejected: { icon: <IconAlert className="size-[30px]" />, title: 'Nu putem aproba acum', sub: undefined },
   }[view];
-  // Dupa revizuirea umana, decizia finala e a specialistului; motivele raman cele ale evaluarii automate.
-  const byHuman = app.review?.status === 'approved' || app.review?.status === 'rejected';
 
   return (
     <>
-      <Backdrop />
-      <Sheet label={head.title} tall={reasons.length > 3 || !!d?.verification}>
-        <SheetHeader step={2} onClose={() => nav('/shop')} />
-        <div className="flex flex-col items-center gap-2 text-center">
-          <span className={`grid size-16 place-items-center rounded-full ${head.badge}`}>{head.icon}</span>
-          <h2 className="text-[24px] font-bold">{head.title}</h2>
-          {head.sub && <p className="text-[15px] text-muted">{head.sub}</p>}
-        </div>
+      <SheetTop><SheetHeader step={2} progress={view === 'approved' ? 2.35 : 2.18} onClose={close} /></SheetTop>
+      <SheetBody>
+        <StatusHead icon={head.icon} title={head.title} sub={head.sub} pulse={view === 'approved'} />
 
         {reasons.length > 0 && (
-          <section className="rounded-2xl border border-line p-4" aria-labelledby="why">
-            <h3 id="why" className="mb-3 text-[15px] font-semibold">{byHuman ? 'Ce a găsit evaluarea automată' : 'De ce?'}</h3>
-            <ul className="flex flex-col gap-3 text-[15px] leading-snug">
-              {reasons.map((r) => <li key={r.code} className="flex gap-2.5"><ReasonIcon code={r.code} /><span>{r.text}</span></li>)}
-            </ul>
-          </section>
+          <Card className="px-4 py-3.5 animate-fade-up [animation-delay:120ms]">
+            <section aria-labelledby="why">
+              <h3 id="why" className="mb-2.5 text-[15px] font-semibold">{byHuman ? 'Ce a găsit evaluarea automată' : 'De ce?'}</h3>
+              <ul className="flex flex-col gap-3 text-[15px] leading-snug">
+                {reasons.map((r, i) => (
+                  <li key={r.code} className="flex gap-2.5 animate-fade-up" style={{ animationDelay: `${180 + i * 70}ms` }}>
+                    <span className="mt-px grid size-5 shrink-0 place-items-center"><ReasonIcon code={r.code} /></span>
+                    <span>{r.text}</span>
+                  </li>
+                ))}
+                {view === 'review' && (
+                  <li className="flex gap-2.5 animate-fade-up" style={{ animationDelay: `${180 + reasons.length * 70}ms` }}>
+                    <span className="mt-px grid size-5 shrink-0 place-items-center text-paper"><IconUserQuestion className="size-5" /></span>
+                    <span>Nu e un refuz. Un specialist se uită mai atent.</span>
+                  </li>
+                )}
+              </ul>
+            </section>
+          </Card>
         )}
 
         {d?.verification && <Verified v={d.verification} />}
 
         {view === 'rejected' && app.debt_advice && (
-          <a href="#consiliere" onClick={(e) => e.preventDefault()} className="flex items-center gap-3 rounded-2xl bg-field p-4 hover:bg-graphite">
-            <span className="flex flex-1 flex-col"><span className="text-[16px] font-semibold">{app.debt_advice.text}</span><span className="text-[14px] text-muted">{app.debt_advice.contact}</span></span>
-            <IconChevron className="size-5 text-muted" />
-          </a>
+          <Card className="flex flex-col gap-1 px-4 py-3.5 animate-fade-up [animation-delay:240ms]">
+            <p className="text-[15px] font-semibold">{app.debt_advice.text}</p>
+            <p className="text-[14px] text-muted">{app.debt_advice.contact}</p>
+          </Card>
         )}
 
-        {view === 'approved' && byHuman && <p className="text-[14px] text-muted">Decizie luată de un specialist, după analiza cererii tale.</p>}
-        {view === 'approved' && !byHuman && d?.automated && (
-          <p className="flex items-center justify-between gap-3 text-[14px] text-muted">
+        <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 text-[14px] text-muted">
+          {view === 'approved' && byHuman && <span>Decizie luată de un specialist, după analiza cererii tale.</span>}
+          {view === 'approved' && !byHuman && d?.automated && (<>
             <span>Decizie automată.</span>
-            <button type="button" onClick={askHuman} disabled={busy} className="flex items-center gap-1.5 font-semibold text-paper hover:underline">
-              <IconArrow className="size-4 text-brand" />Cere analiză umană
-            </button>
-          </p>
-        )}
-        {view === 'rejected' && <p className="text-[14px] text-muted">{byHuman || !d?.automated ? 'Decizie luată de un specialist, după analiza cererii tale.' : 'Decizie automată.'}</p>}
-        {view === 'review' && <p className="text-[14px] text-muted">Te anunțăm prin SMS și în aplicație.</p>}
-
-        {error && <ErrorNote>{error}</ErrorNote>}
-
-        <div className="mt-auto grid grid-cols-2 gap-2.5">
-          {view === 'approved' && (<><Btn variant="secondary" onClick={() => nav('/shop')}>Nu acum</Btn><Btn onClick={() => nav(`/a/${id}/oferta`)}>Vezi oferta</Btn></>)}
-          {view === 'review' && (<><Btn variant="secondary" onClick={() => void load()}>Verifică din nou</Btn><Btn onClick={() => nav('/shop')}>Am înțeles</Btn></>)}
-          {view === 'rejected' && (<><Btn variant="secondary" onClick={askHuman} loading={busy}>Cere analiză umană</Btn><Btn onClick={() => nav('/shop')}>Înapoi</Btn></>)}
+            <ArrowLink onClick={askHuman} disabled={busy || refreshing}>Cere analiză umană</ArrowLink>
+          </>)}
+          {view === 'rejected' && <span>{byHuman || !d?.automated ? 'Decizie luată de un specialist, după analiza cererii tale.' : 'Decizie automată.'}</span>}
+          {view === 'review' && <span>Te anunțăm prin SMS și în aplicație.</span>}
         </div>
-      </Sheet>
+        {error && <ErrorNote>{error}</ErrorNote>}
+      </SheetBody>
+      <SheetFoot>
+        <TwoButtons>
+          {view === 'approved' && (<>
+            <Btn variant="secondary" onClick={close}>Nu acum</Btn>
+            <Btn onClick={() => nav(`/a/${id}/oferta`, { viewTransition: true })} loading={navigation.location?.pathname === `/a/${id}/oferta`}>Vezi oferta</Btn>
+          </>)}
+          {view === 'review' && (<>
+            <Btn variant="secondary" onClick={() => { action.current = 'recheck'; refresh(); }} loading={refreshing}>Verifică din nou</Btn>
+            <Btn onClick={close}>Am înțeles</Btn>
+          </>)}
+          {view === 'rejected' && (<>
+            <Btn variant="secondary" onClick={askHuman} loading={busy || refreshing}>Cere analiză umană</Btn>
+            <Btn onClick={close}>Înapoi</Btn>
+          </>)}
+        </TwoButtons>
+      </SheetFoot>
     </>
   );
 }
@@ -121,8 +142,8 @@ function Verified({ v }: { v: Verification }) {
     const checked = kind === 'bank' ? l.verified_lei : l.bureau_lei;
     const src = kind === 'bank' ? (v.source ?? 'Open Banking (simulat)') : 'Biroul de Credit';
     return (
-      <div className="flex flex-col gap-0.5 border-b border-line py-2.5 last:border-0">
-        <div className="flex justify-between gap-3 text-[15px]"><span>{label}</span><span className="font-semibold">{leiInt(l.used_lei)}</span></div>
+      <div className="flex flex-col gap-0.5 border-b border-stroke py-2.5 last:border-b-0">
+        <div className="flex justify-between gap-3 text-[15px]"><span>{label}</span><span className="tabular font-semibold">{leiInt(l.used_lei)}</span></div>
         <p className="text-[13px] text-muted">
           declarat {leiInt(l.declared_lei)} · {checked == null ? <span className="text-brand">neverificat, un coleg verifică</span> : <>verificat {leiInt(checked)} ({src})</>}
           {kind === 'bureau' && l.bank_lei != null && <> · în cont {leiInt(l.bank_lei)} ({v.source ?? 'Open Banking (simulat)'})</>}
@@ -131,17 +152,15 @@ function Verified({ v }: { v: Verification }) {
     );
   };
   return (
-    <details className="group rounded-2xl bg-field px-4 py-3">
-      <summary className="flex cursor-pointer list-none items-center justify-between text-[15px] font-semibold">
-        Ce am verificat
-        <IconChevron className="size-4 rotate-90 text-muted transition-transform group-open:-rotate-90" />
-      </summary>
-      <div className="mt-1">
-        {line('Venit', v.income, 'bank')}
-        {line('Cheltuieli', v.expenses, 'bank')}
-        {line('Alte rate', v.other_installments, 'bureau')}
-        <p className="pt-2 text-[12px] text-muted">Cifra din dreapta e cea folosită în decizie.</p>
-      </div>
-    </details>
+    <Card className="px-4 py-1 animate-fade-up [animation-delay:200ms]">
+      <Collapse summary={<span className="font-semibold">Ce am verificat</span>}>
+        <div className="pb-2">
+          {line('Venit', v.income, 'bank')}
+          {line('Cheltuieli', v.expenses, 'bank')}
+          {line('Alte rate', v.other_installments, 'bureau')}
+          <p className="pt-2 text-[12px] text-muted">Cifra din dreapta e cea folosită în decizie.</p>
+        </div>
+      </Collapse>
+    </Card>
   );
 }
