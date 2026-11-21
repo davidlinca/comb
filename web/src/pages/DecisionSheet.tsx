@@ -8,6 +8,18 @@ import Backdrop from '../components/Backdrop';
 
 type View = 'approved' | 'review' | 'rejected';
 
+// Iconita fiecarui motiv dupa codul din API (engine-v2): rosu doar ce a dus la respingere.
+const REJECT_CODES = new Set(['INCOME_MISSING', 'DTI_HIGH', 'RESIDUAL_NEGATIVE']);
+const REVIEW_CODES = new Set(['RESIDUAL_LOW', 'BILLS_LATE', 'INCOME_NOT_VERIFIED', 'BANK_DATA_UNAVAILABLE']);
+const ADJUST_CODES = new Set(['INCOME_VERIFIED_LOWER', 'EXPENSES_VERIFIED_HIGHER', 'BUREAU_HIGHER']);
+
+function ReasonIcon({ code }: { code: string }) {
+  if (REJECT_CODES.has(code)) return <IconAlert className="mt-0.5 size-5 shrink-0 text-danger" />;
+  if (REVIEW_CODES.has(code)) return <IconClock className="mt-0.5 size-5 shrink-0 text-brand" />;
+  if (ADJUST_CODES.has(code)) return <IconInfo className="mt-0.5 size-5 shrink-0 text-muted" />;
+  return <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-brand text-ink"><IconCheck className="size-3" /></span>;
+}
+
 export default function DecisionSheet() {
   const { id = '' } = useParams();
   const nav = useNavigate();
@@ -48,9 +60,8 @@ export default function DecisionSheet() {
     review: { icon: <IconClock />, badge: 'bg-field text-brand', title: 'Cerere în analiză', sub: 'Primești răspunsul în 24 de ore.' },
     rejected: { icon: <IconAlert />, badge: 'bg-field text-danger', title: 'Nu putem aproba acum', sub: '' },
   }[view];
-  const reasonIcon = view === 'approved'
-    ? <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-brand text-ink"><IconCheck className="size-3" /></span>
-    : <IconInfo className={`mt-0.5 size-5 shrink-0 ${view === 'rejected' ? 'text-danger' : 'text-brand'}`} />;
+  // Dupa revizuirea umana, decizia finala e a specialistului; motivele raman cele ale evaluarii automate.
+  const byHuman = app.review?.status === 'approved' || app.review?.status === 'rejected';
 
   return (
     <>
@@ -65,9 +76,9 @@ export default function DecisionSheet() {
 
         {reasons.length > 0 && (
           <section className="rounded-2xl border border-line p-4" aria-labelledby="why">
-            <h3 id="why" className="mb-3 text-[15px] font-semibold">De ce?</h3>
+            <h3 id="why" className="mb-3 text-[15px] font-semibold">{byHuman ? 'Ce a găsit evaluarea automată' : 'De ce?'}</h3>
             <ul className="flex flex-col gap-3 text-[15px] leading-snug">
-              {reasons.map((r) => <li key={r.code} className="flex gap-2.5">{reasonIcon}<span>{r.text}</span></li>)}
+              {reasons.map((r) => <li key={r.code} className="flex gap-2.5"><ReasonIcon code={r.code} /><span>{r.text}</span></li>)}
             </ul>
           </section>
         )}
@@ -81,7 +92,8 @@ export default function DecisionSheet() {
           </a>
         )}
 
-        {view === 'approved' && d?.automated && (
+        {view === 'approved' && byHuman && <p className="text-[14px] text-muted">Decizie luată de un specialist, după analiza cererii tale.</p>}
+        {view === 'approved' && !byHuman && d?.automated && (
           <p className="flex items-center justify-between gap-3 text-[14px] text-muted">
             <span>Decizie automată.</span>
             <button type="button" onClick={askHuman} disabled={busy} className="flex items-center gap-1.5 font-semibold text-paper hover:underline">
@@ -89,7 +101,7 @@ export default function DecisionSheet() {
             </button>
           </p>
         )}
-        {view === 'rejected' && <p className="text-[14px] text-muted">{d?.automated ? 'Decizie automată.' : 'Decizie luată de un specialist.'}</p>}
+        {view === 'rejected' && <p className="text-[14px] text-muted">{byHuman || !d?.automated ? 'Decizie luată de un specialist, după analiza cererii tale.' : 'Decizie automată.'}</p>}
         {view === 'review' && <p className="text-[14px] text-muted">Te anunțăm prin SMS și în aplicație.</p>}
 
         {error && <ErrorNote>{error}</ErrorNote>}

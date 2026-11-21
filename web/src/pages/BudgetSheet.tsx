@@ -108,7 +108,7 @@ export default function BudgetSheet() {
 
           <p className="flex gap-2.5 rounded-2xl border border-line px-4 py-3 text-[14px] leading-snug text-muted">
             <IconInfo className="mt-0.5 size-4 shrink-0 text-paper" />
-            <span><span className="text-paper">Folosim doar aceste date, istoricul facturilor și Biroul de Credit, ca să vedem dacă îți permiți rata.</span> Nu folosim rețele sociale sau date despre sănătate.</span>
+            <span><span className="text-paper">Folosim doar aceste date, istoricul facturilor, contul bancar (dacă ești de acord) și Biroul de Credit, ca să vedem dacă îți permiți rata.</span> Nu folosim rețele sociale sau date despre sănătate.</span>
           </p>
 
           {formError && <ErrorNote>{formError}</ErrorNote>}

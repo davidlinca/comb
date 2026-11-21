@@ -149,9 +149,9 @@ if (!OP_PASS) {
     (await call(op, 'POST', `/applications/${idI}/consents`, { billing_history: true, bank_data: true, privacy_notice_read: true })).status === 403);
   const lg = await call(op, 'GET', `/backoffice/ledger?application_id=${id}`);
   const evs = (lg.json?.entries ?? []).map((e) => e.event);
-  const expected = ['offer_requested', 'ad_warning_shown', 'personalised_offer_disclosed', 'consent_given', 'consent_given', 'assessment_done',
+  const expected = ['offer_requested', 'ad_warning_shown', 'personalised_offer_disclosed', 'consent_given', 'consent_given', 'consent_given', 'assessment_done',
     'secci_shown', 'secci_viewed', 'secci_emailed', 'otp_sent', 'agreement_signed', 'withdrawal_reminder_sent', 'withdrawn'];
-  ok('jurnalul Anei -> valid, 13 evenimente in ordine', lg.json?.valid === true && JSON.stringify(evs) === JSON.stringify(expected), JSON.stringify({ valid: lg.json?.valid, evs }));
+  ok('jurnalul Anei -> valid, 14 evenimente in ordine (3 acorduri)', lg.json?.valid === true && JSON.stringify(evs) === JSON.stringify(expected), JSON.stringify({ valid: lg.json?.valid, evs }));
   ok('jurnalul are articol CCD2 si hash pe fiecare rand', (lg.json?.entries ?? []).every((e) => e.ccd2_ref && /^[0-9a-f]{64}$/.test(e.hash)));
   const list = await call(op, 'GET', '/backoffice/ledger');
   ok('lista jurnalelor -> ultimele 25, toate valide', list.json?.all_valid === true && list.json?.count > 0 && list.json?.count <= 25, JSON.stringify({ all: list.json?.all_valid, n: list.json?.count }));
