@@ -1,6 +1,6 @@
 # Predare pentru Claude – conversatia urmatoare
 
-Versiune: sambata 21.11.2026, 11:30 (arhivare cereri demo + `docs/ARHITECTURA.md`; pitch in engleza 3–5 min, aplicatia ramane in romana; urmeaza integrarea cu David – vezi 5.0). Scris pentru conversatia noua (Opus 5.5, effort extra).
+Versiune: sambata 21.11.2026, 12:15 (verificarea venitului prin Open Banking simulat: migratie + date + engine-v2 + API v0.3; inainte: arhivare cereri demo + `docs/ARHITECTURA.md`; pitch in engleza 3–5 min, aplicatia ramane in romana; urmeaza integrarea cu David – vezi 5.0). Scris pentru conversatia noua (Opus 5.5, effort extra).
 Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spune CUM lucram, UNDE e totul, CE e gata si CE urmeaza exact.
 
 ---
@@ -44,7 +44,7 @@ Sursa de adevar pentru DECIZII ramane `DECIZII_HACKATHON.md`. Fisierul asta spun
 | Cheia publishable | `sb_publishable_LJBH2tJNlXCXEZCh9ujE2g_IBeMHh2f` (publica, merge in front, doar in headerul `apikey`) |
 | Cheia secret | DOAR in mediul Edge Function (`SUPABASE_SECRET_KEYS`). Niciodata in chat, fisiere sau front |
 | API | `https://ezynswlvqqrzahpblkxu.supabase.co/functions/v1/api` – Edge Function `api`, versiunea 3 (partea 2, 21.11 03:25), `verify_jwt = false` |
-| Migratii aplicate | `20261120231817 init_schema`, `20261121091630 application_archive` (coloana `applications.archived_at` + index partial; 21.11, 11:16) |
+| Migratii aplicate | `20261120231817 init_schema`, `20261121091630 application_archive` (coloana `applications.archived_at` + index partial; 21.11, 11:16), `20261121094520 bank_verification` (acord `bank_data`, tabel `bank_account_insights`, 5 coloane in `assessments`; 21.11, 11:45). Date: `data/bank_insights.sql` rulat (63 de randuri) |
 | Secrete Edge Function | `OTP_PEPPER` (setat de Bogdan cu `npx supabase secrets set` pe 21.11, valoarea nu apare nicaieri), `ALLOWED_ORIGINS` (de setat cu domeniul Vercel) |
 | Conturi demo | `ana@`, `mihai@`, `ioana@demo.comb.ro` – parola `Demo2026!` (publica, in front). `operator@demo.comb.ro` – parola doar la Bogdan, `app_metadata.role = operator` |
 | Vercel | conectorul Vercel e conectat in claude.ai; proiectul NU e inca legat de repo. Repo-ul e pe contul lui David |
@@ -78,7 +78,7 @@ Tabele: `customers`, `billing_history`, `credit_bureau_records`, `devices`, `cre
 
 ### 3.2 Motorul (`supabase/functions/_shared/engine/`)
 Pur TypeScript, fara DB/retea, aceleasi teste in Node si Deno. Exporta din `index.ts`: `buildQuote`, `aprPct`, `assessAffordability`, `countLateBills12m`, `validateAssessmentInput`, `withdrawalDeadline`, `reminderWindow`, `withdrawalAmount`, `canWithdraw`, `buildSecci`, `canonicalJson`, `sha256Hex`, `localDate`, `addDays`, `addMonths`, `daysBetween`, formatari ro-RO. `ENGINE_VERSION = 'engine-v1'`.
-Reguli decise (DECIZII sectiunea 5): DAE cu 12 luni egale; rata rotunjita la ban, ultima ajustata; prima rata la o luna de la semnare; alte rate = max(declarat, Birou); praguri 40% / 0 / 500 lei / 2 facturi > 30 zile; retragere 14 zile, suma = credit + dobanda zilnica (rata/365), returnare 30 zile; reminder zilele 1–7 daca semnat la < 24h de la SECCI.
+`ENGINE_VERSION = 'engine-v2'` (21.11, 11:45): input nou `bank_income_lei`, `bank_expenses_lei`, `bank_status` (`used`/`no_consent`/`unavailable`); rezultat nou `verification` + `metrics.income_used_lei/expenses_used_lei`; `MAX_REASONS = 4`; motivele de respingere primele. Reguli decise (DECIZII sectiunea 5): venit = min(declarat, banca), cheltuieli = max(declarat, banca), fara acord bancar → revizuire umana; DAE cu 12 luni egale; rata rotunjita la ban, ultima ajustata; prima rata la o luna de la semnare; alte rate = max(declarat, Birou); praguri 40% / 0 / 500 lei / 2 facturi > 30 zile; retragere 14 zile, suma = credit + dobanda zilnica (rata/365), returnare 30 zile; reminder zilele 1–7 daca semnat la < 24h de la SECCI.
 Valori Ana (PH-2, 24 luni): 106,52 lei/luna, ultima 106,46, total 2.556,42, cost 357,42, DAE 15,96%.
 
 ### 3.3 API partea 1 (`supabase/functions/api/`)
@@ -173,6 +173,7 @@ Implementat dupa specificatia de mai jos, cu deciziile din 5.3. Contractul final
 | 5 | Vercel (root `web`) + secretul `ALLOWED_ORIGINS` (`npx supabase secrets set ALLOWED_ORIGINS=https://<domeniu>,http://localhost:5173 --project-ref ...`) + QR | David importa, Bogdan secretul | domeniul | medium |
 | 6 | Numele operatorului/modelelor: update `devices` (cu aprobare) + `OPERATOR_NAME` in `lib/flow.ts` + redeploy | noi | numele | medium |
 | 7 | Date curate pentru demo – **decis si scris (11:20)**: `archived_at` (migratie aplicata), back-office-ul ascunde cererile arhivate, `data/archive_demo.sql` (Bogdan il ruleaza dupa deploy si duminica inainte de pitch). Test: `npm run test:archive` (8/8) | noi | – | gata dupa deploy |
+| 7b | Verificarea venitului (Open Banking simulat) – **scris + migratie + date aplicate (12:15)**. Ramane: PR `feat/backend-bank-verification`, deploy, smoke (verificari noi pentru 9.000 → 5.200 si fara acord → revizuire). Teste: `npm run test:bank` 16/16, motor 33/33. David: casuta 3 + „Ce am verificat” (mesaj trimis 11:50, contract v0.3) | noi + David | casuta + bloc | high |
 | 8 | Testul SECCI cu oameni | David | rezultatele | – |
 | 9 | Slide tehnic + securitate | noi | locul in deck | high |
 | 10 | Rezerva buguri | noi | – | high |
@@ -216,7 +217,7 @@ Apoi PR pe GitHub → Merge → `git checkout main` + `git pull`. Atentie: daca 
 ```
 node --test supabase/functions/_shared/engine/engine.test.ts
 node --test supabase/functions/api/lib/flow.test.ts
-cd supabase/tests && npm install && npm run test:schema && npm run test:seed
+cd supabase/tests && npm install && npm run test:schema && npm run test:seed && npm run test:archive && npm run test:bank
 node supabase/tests/api_smoke.mjs        # pe API-ul publicat; creeaza cereri reale (jurnalul nu se sterge)
 # cu back-office: $env:OPERATOR_PASSWORD = Read-Host "Parola operator"   (inainte de comanda de mai sus)
 ```

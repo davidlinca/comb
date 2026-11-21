@@ -1,5 +1,8 @@
 // Evaluarea accesibilitatii (art. 18 CCD2), regulile din DECIZII_HACKATHON.md, sectiunea 5.
 //
+//  - Venit folosit = minimul dintre declarat si contul bancar (Open Banking, simulat); cheltuieli = maximul.
+//    Fara acord pentru datele bancare (sau fara date) -> venitul nu e verificat -> revizuire umana,
+//    niciodata aprobare automata pe venit nedovedit (art. 18(3), decizie 21.11, 11:45).
 //  - Alte rate folosite = maximul dintre ce declara clientul si Biroul de Credit (simulat).
 //  - Grad de indatorare = (alte rate + rata noua) / venit net. Peste 40% -> respins (limita BNR).
 //  - Ce ramane = venit - cheltuieli - alte rate - rata noua.
@@ -10,7 +13,9 @@
 
 import { leiRotunjit, pctRotunjit, round2 } from './money.ts';
 
-export const ENGINE_VERSION = 'engine-v1';
+export const ENGINE_VERSION = 'engine-v2';
+export const BANK_SOURCE = 'Open Banking (simulat)';
+export const MAX_REASONS = 4;
 export const DTI_MAX_PCT = 40;
 export const RESIDUAL_REVIEW_LEI = 500;
 export const LATE_BILLS_REVIEW = 2;
@@ -31,6 +36,19 @@ export type AffordabilityInput = {
   late_bills_12m: number | null;
   /** de ce lipseste istoricul, pentru motivul afisat */
   history_status: 'used' | 'no_history' | 'no_consent';
+  /** contul bancar (Open Banking, simulat): null daca nu e acord sau nu exista date */
+  bank_income_lei: number | null;
+  bank_expenses_lei: number | null;
+  /** used = acord + date; no_consent = fara acord; unavailable = acord, dar fara date */
+  bank_status: 'used' | 'no_consent' | 'unavailable';
+};
+
+export type Verification = {
+  bank_data_used: boolean;
+  source: string | null;
+  income: { declared_lei: number; verified_lei: number | null; used_lei: number };
+  expenses: { declared_lei: number; verified_lei: number | null; used_lei: number };
+  other_installments: { declared_lei: number; bureau_lei: number; used_lei: number };
 };
 
 export type AffordabilityResult = {
@@ -42,7 +60,10 @@ export type AffordabilityResult = {
     residual_lei: number;
     late_bills_12m: number | null;
     other_installments_used_lei: number;
+    income_used_lei: number;
+    expenses_used_lei: number;
   };
+  verification: Verification;
   human_review_available: true;
   debt_advice: { text: string; contact: string } | null;
   engine_version: string;
@@ -50,13 +71,16 @@ export type AffordabilityResult = {
 
 export function assessAffordability(i: AffordabilityInput): AffordabilityResult {
   const other = Math.max(i.other_installments_declared_lei, i.other_installments_bureau_lei);
-  const income = i.net_income_lei;
+  const bankUsed = i.bank_status === 'used' && i.bank_income_lei !== null && i.bank_expenses_lei !== null;
+  const income = bankUsed ? Math.min(i.net_income_lei, i.bank_income_lei as number) : i.net_income_lei;
+  const expenses = bankUsed ? Math.max(i.monthly_expenses_lei, i.bank_expenses_lei as number) : i.monthly_expenses_lei;
   const dtiExact = income > 0 ? ((other + i.new_installment_lei) / income) * 100 : null; // pentru decizie
   const dti = dtiExact === null ? null : round2(dtiExact);                                    // pentru afisare
-  const residual = round2(income - i.monthly_expenses_lei - other - i.new_installment_lei);
+  const residual = round2(income - expenses - other - i.new_installment_lei);
 
   const decisive: Reason[] = []; // motivele care au decis
-  const bureau: Reason[] = [];   // verificarea cu Biroul de Credit (o aratam mereu daca exista)
+  const bureau: Reason[] = [];   // ajustari din surse verificate (banca, Birou) - le aratam mereu
+  const verified: Reason[] = []; // confirmarea verificarii venitului
   const info: Reason[] = [];     // motive explicative
 
   let decision = 'approved' as Decision; // 'as' ca TS sa nu o fixeze la 'approved'
@@ -65,10 +89,29 @@ export function assessAffordability(i: AffordabilityInput): AffordabilityResult 
     if (rank[d] > rank[decision]) decision = d;
   };
 
+  // 0. Verificarea venitului si a cheltuielilor (Open Banking, simulat)
+  if (bankUsed) {
+    const bi = i.bank_income_lei as number, be = i.bank_expenses_lei as number;
+    if (bi < i.net_income_lei) {
+      bureau.push({ code: 'INCOME_VERIFIED_LOWER', text: `Am folosit venitul din contul tau bancar (${leiRotunjit(bi)} lei pe luna), mai mic decat cel declarat (${leiRotunjit(i.net_income_lei)} lei).` });
+    } else {
+      verified.push({ code: 'INCOME_VERIFIED', text: 'Venitul tau a fost verificat in contul bancar (Open Banking, simulat).' });
+    }
+    if (be > i.monthly_expenses_lei) {
+      bureau.push({ code: 'EXPENSES_VERIFIED_HIGHER', text: `Am folosit cheltuielile din contul tau bancar (${leiRotunjit(be)} lei pe luna), mai mari decat cele declarate (${leiRotunjit(i.monthly_expenses_lei)} lei).` });
+    }
+  } else if (i.bank_status === 'no_consent') {
+    worse('manual_review');
+    decisive.push({ code: 'INCOME_NOT_VERIFIED', text: 'Nu ai dat acordul pentru datele bancare, asa ca un coleg iti verifica venitul cu un alt document (de exemplu fluturasul de salariu). Nu te respingem pentru asta.' });
+  } else {
+    worse('manual_review');
+    decisive.push({ code: 'BANK_DATA_UNAVAILABLE', text: 'Nu am putut citi datele din contul tau bancar, asa ca un coleg iti verifica venitul cu un alt document.' });
+  }
+
   // 1. Venit
   if (income <= 0) {
     worse('rejected');
-    decisive.push({ code: 'INCOME_MISSING', text: 'Nu ai declarat un venit lunar, deci nu putem calcula daca iti permiti ratele.' });
+    decisive.push({ code: 'INCOME_MISSING', text: 'Nu avem un venit lunar (declarat sau verificat), deci nu putem calcula daca iti permiti ratele.' });
   }
 
   // 2. Grad de indatorare
@@ -118,14 +161,27 @@ export function assessAffordability(i: AffordabilityInput): AffordabilityResult 
     });
   }
 
-  // Ordinea: ce a decis, apoi verificarea cu Biroul, apoi explicatiile; maximum 3 motive afisate
-  const reasons = [...decisive, ...bureau, ...info].slice(0, 3);
+  // Ordinea: ce a decis (intai motivele de respingere, apoi cele de revizuire), ajustarile din surse verificate,
+  // confirmarea verificarii, explicatiile; maximum 4 motive
+  const REJECT_CODES = new Set(['INCOME_MISSING', 'DTI_HIGH', 'RESIDUAL_NEGATIVE']);
+  const ordered = [...decisive.filter((x) => REJECT_CODES.has(x.code)), ...decisive.filter((x) => !REJECT_CODES.has(x.code))];
+  const reasons = [...ordered, ...bureau, ...verified, ...info].slice(0, MAX_REASONS);
 
   return {
     decision,
     automated: true,
     reasons,
-    metrics: { dti_pct: dti, residual_lei: residual, late_bills_12m: i.late_bills_12m, other_installments_used_lei: other },
+    metrics: {
+      dti_pct: dti, residual_lei: residual, late_bills_12m: i.late_bills_12m, other_installments_used_lei: other,
+      income_used_lei: income, expenses_used_lei: expenses,
+    },
+    verification: {
+      bank_data_used: bankUsed,
+      source: bankUsed ? BANK_SOURCE : null,
+      income: { declared_lei: i.net_income_lei, verified_lei: bankUsed ? i.bank_income_lei : null, used_lei: income },
+      expenses: { declared_lei: i.monthly_expenses_lei, verified_lei: bankUsed ? i.bank_expenses_lei : null, used_lei: expenses },
+      other_installments: { declared_lei: i.other_installments_declared_lei, bureau_lei: i.other_installments_bureau_lei, used_lei: other },
+    },
     human_review_available: true,
     debt_advice: decision === 'rejected' ? DEBT_ADVICE : null,
     engine_version: ENGINE_VERSION,

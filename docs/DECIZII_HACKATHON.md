@@ -1,6 +1,6 @@
 # Hackathon Telco – decizii finale si brief pentru David
 
-Versiune: sambata 21.11.2026, ora 11:30 (pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
+Versiune: sambata 21.11.2026, ora 12:15 (verificarea venitului prin Open Banking simulat – contract v0.3 in sectiunea 6, regula in sectiunea 5, checklist 4–5). Versiunea 11:30: pitch in engleza, 3–5 minute; aplicatia ramane in romana; arhivarea cererilor demo; `docs/ARHITECTURA.md`). Versiunea 10:50: ZERO4 verificat pe server; back-office in `main`; adaugate: contractul v0.2 pentru rutele 6b si 7–16 in sectiunea 6, deciziile de la 03:00 in sectiunea 1, regula „ore orientative” in sectiunea 8, masura 15 in sectiunea 14, statusul din sectiunea 15). Pentru Claude: citeste si `PREDARE_CLAUDE.md`. Predare pitch: **duminica 22.11, ora 13:30**.
 Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 
 ---
@@ -31,7 +31,7 @@ Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 | Backend | Totul in Supabase: Postgres, Auth, RLS si API-ul in **Edge Functions (TypeScript)**. Claude le creeaza si le publica prin conectorul Supabase |
 | Deploy | Web: Vercel, legat de repo-ul lui David (prin conectorul Vercel). API: Supabase Edge Functions. Fara Render |
 | Brand | Operator fictiv (numele il alege David; sa nu semene cu Orange, Vodafone sau Digi). Creditor partener fictiv. Fara logo-uri reale |
-| Simulat | OTP (codul apare pe ecran), Biroul de Credit, creditorul partener, trimiterea pe email |
+| Simulat | OTP (codul apare pe ecran), Biroul de Credit, contul bancar (Open Banking), creditorul partener, trimiterea pe email |
 | Limba | Aplicatia in romana (produs pentru clienti romani); pitch-ul in engleza, 3–5 minute (21.11, 11:00) |
 | Design | Figma intai (maxim 2,5 ore), apoi cod |
 | Accent in pitch | 40% dovada conformitatii · 35% contract inteles in sub 60 de secunde (masurat) · 25% date corecte si explicate |
@@ -41,6 +41,7 @@ Tema aleasa: **Installments, Built In (Telco, sponsor Neofin)**.
 | Secretul OTP | `OTP_PEPPER` il seteaza Bogdan cu CLI; valoarea nu apare in chat, fisiere sau loguri (21.11, 03:00) |
 | Rutele de client | Doar clientul care detine cererea; operatorul lucreaza doar prin `/backoffice/*` (21.11, 03:00) |
 | Orele din plan | Orientative: cand un pas e gata mai devreme, trecem la urmatorul (21.11, 03:00) |
+| Verificarea venitului (art. 18(3)) | Al 3-lea acord, separat si nebifat: datele din contul bancar (Open Banking, **simulat**). Venit folosit = min(declarat, banca), cheltuieli = max(declarat, banca). **Fara acord sau fara date → revizuire umana**, niciodata aprobare automata pe venit nedovedit. `bank_data` obligatoriu true/false in `/consents` (21.11, 11:45) |
 | Date curate pentru demo | Nu stergem nimic. Coloana `applications.archived_at`: cererile arhivate dispar din back-office (lista + coada), jurnalul ramane valid. `data/archive_demo.sql` arhiveaza toate cererile celor 3 conturi demo; il ruleaza Bogdan in SQL Editor inainte de repetitii si inainte de pitch (21.11, 11:20) |
 
 ---
@@ -84,14 +85,16 @@ Fiecare ecran are: scop, continut obligatoriu, regula CCD2, stari si „gata can
 ### Ecran 3 – Verificarea accesibilitatii
 - 2 casute de acord, **separate si nebifate**:
   1. „Sunt de acord sa fie folosit istoricul facturilor mele pentru evaluare.” (optional)
-  2. „Am citit nota de informare privind prelucrarea datelor.” (obligatoriu)
+  2. „Sunt de acord sa fie citite veniturile si cheltuielile din contul meu bancar (Open Banking, simulat), doar pentru aceasta evaluare.” (optional, dar fara el venitul il verifica un coleg; „De ce?”: „Legea ne cere sa verificam venitul. Daca nu esti de acord, un coleg iti verifica venitul cu un alt document.”) – adaugat 21.11, 11:45
+  3. „Am citit nota de informare privind prelucrarea datelor.” (obligatoriu)
 - Campuri: venit net lunar, cheltuieli lunare, alte rate lunare. Fiecare are o explicatie scurta: „De ce intrebam?”.
 - Text fix: „Nu folosim date din social media si nici date despre sanatate.”
 - Gata cand: `POST /applications/{id}/consents`, apoi `POST /applications/{id}/assessment`.
 
 ### Ecran 4 – Decizia, explicata (high-fi in Figma)
 - 3 stari: **Aprobat** · **Revizuire umana** · **Respins**.
-- 2–3 motive in limbaj simplu (vin din API ca text).
+- 2–4 motive in limbaj simplu (vin din API ca text).
+- Bloc „Ce am verificat” (din `verification`): venit declarat / verificat (Open Banking, simulat) / folosit; la fel cheltuielile; alte rate declarat / Biroul de Credit / folosit. `verified_lei = null` → „neverificat – un coleg verifica”.
 - Mereu vizibil: „Decizia a fost luata automat.” + butonul **„Cere revizuire de catre un om”** (art. 18(8)).
 - Respins: mesaj respectuos, trimitere la consiliere privind datoriile (art. 18(9)) si **fara alt credit oferit in loc**.
 - Gata cand: toate cele 3 stari arata bine cu cele 3 persone.
@@ -181,6 +184,7 @@ ZERO4 e intentionat in demo: il da un creditor partener (tert), pe mai mult de 5
 - **2 sau mai multe facturi intarziate peste 30 de zile in ultimele 12 luni → revizuire umana**, niciodata respingere automata.
 - Lipsa istoricului (prepaid) nu se pune ca minus.
 - **Alte rate = maximul dintre ce declara clientul si Biroul de Credit (simulat).** Daca Biroul arata mai mult, motivul afisat spune asta.
+- **Venit = minimul dintre declarat si contul bancar; cheltuieli = maximul** (Open Banking simulat, doar cu acordul `bank_data`). Daca banca arata alt venit/alte cheltuieli, motivul afisat spune asta. **Fara acord sau fara date → revizuire umana** (`INCOME_NOT_VERIFIED` / `BANK_DATA_UNAVAILABLE`); respingerea ramane automata daca nici cifrele declarate nu ajung (engine-v2, 21.11, 11:45).
 - Pragurile exacte: 40,00% trece, peste 40% e respins; daca raman exact 500 lei, e aprobat.
 
 ### Reguli de calcul (decise 21.11, 01:30; implementate in `supabase/functions/_shared/engine/`)
@@ -247,6 +251,16 @@ Publicate pe 21.11, 03:25 (functia `api` versiunea 3) si testate pe server. Valo
 - **14 `POST /demo/time-travel`** – `{ "agreement_id": "...", "days": 3 }` (0–60, valoare absoluta, nu se aduna) → `{ agreement_id, demo_offset_days, today }`. Butonul „Sari la ziua 3”, apoi `GET /agreements/{id}`.
 - **15–16 back-office** (doar operatorul, altfel 403; le foloseste back-office-ul nostru): `GET /backoffice/ledger` (ultimele 25 de cereri + `all_valid`), `GET /backoffice/ledger?application_id=` (`valid`, `entries_count`, `entries[]` cu `description`, `actor`, `payload`), `GET /backoffice/reviews` (`?status=all` pentru istoric), `POST /backoffice/reviews` `{ review_id, status: "approved" | "rejected", note? }`.
 
+### Schimbari v0.3 (21.11, 12:15) – verificarea venitului (Open Banking, simulat)
+Trimis lui David la 11:50. Ecranele 3 si 4.
+- **5 `POST /applications/{id}/consents`** – body nou, `bank_data` **obligatoriu** (true/false): `{ "billing_history": true, "bank_data": true, "privacy_notice_read": true }`. Fara `bank_data` → 400 `VALIDATION`, `fields: ["bank_data"]`. Cu `true` se scrie in jurnal `consent_given { purpose: "bank_data" }`.
+- **6 `POST /applications/{id}/assessment`** – body neschimbat. Raspunsul are in plus `verification`:
+  `{ "bank_data_used": true, "source": "Open Banking (simulat)", "income": { "declared_lei": 5200, "verified_lei": 5200, "used_lei": 5200 }, "expenses": { "declared_lei": 2100, "verified_lei": 2100, "used_lei": 2100 }, "other_installments": { "declared_lei": 300, "bureau_lei": 300, "used_lei": 300 } }`. Fara acord bancar: `bank_data_used: false`, `source: null`, `verified_lei: null`.
+- `reasons` are acum **maximum 4** motive (ordinea: ce a decis – intai respingerea –, ajustarile din surse verificate, confirmarea verificarii, explicatii). Coduri noi: `INCOME_VERIFIED`, `INCOME_VERIFIED_LOWER`, `EXPENSES_VERIFIED_HIGHER`, `INCOME_NOT_VERIFIED`, `BANK_DATA_UNAVAILABLE`. Ana: `INCOME_VERIFIED, DTI_OK, RESIDUAL_OK, BILLS_ON_TIME`.
+- **6b `GET /applications/{id}`** – `decision.verification`, aceeasi forma (pe evaluarile vechi: `used_lei` = declarat).
+- **16 `GET /backoffice/reviews`** – `assessment` are in plus `bank_data_used`, `income_verified_lei`, `income_used_lei`, `expenses_verified_lei`, `expenses_used_lei`; back-office-ul arata „Venit neverificat: cere un document” cand lipseste verificarea.
+- Jurnal: `assessment_done` are in payload `income_verification` (`open_banking_simulated` / `no_consent` / `unavailable`) si `engine_version: "engine-v2"`.
+
 ### Exemple de raspuns (mock-uri, pentru Ana)
 
 `GET /me`
@@ -285,7 +299,7 @@ Publicate pe 21.11, 03:25 (functia `api` versiunea 3) si testate pe server. Valo
 
 `POST /applications/{id}/consents`
 ```json
-{ "billing_history": true, "privacy_notice_read": true }
+{ "billing_history": true, "bank_data": true, "privacy_notice_read": true }
 ```
 → `{ "ok": true }`
 
@@ -466,8 +480,8 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 | 1 | Fara credit nesolicitat; nimic pre-bifat | 17, 14–15 | Ecran 1: oferta doar la „Vreau in rate”; optiunile pornesc nebifate | `offer_requested` | David | P0 |
 | 2 | Avertisment „Banii imprumutati costa bani” | 8 | Banner pe ecranele 1–2 | `ad_warning_shown` | David + API | P0 |
 | 3 | Informare cand oferta e personalizata automat | 13 | Eticheta + „De ce vad asta?” | `personalised_offer_disclosed` | David | P1 |
-| 4 | Evaluare pe venit, cheltuieli, obligatii; fara date sensibile sau social media | 18(3) | API accepta doar campuri din lista alba; test automat pica daca apare un camp interzis | `assessment_done` (hash-ul datelor, nu datele) | Bogdan | P0 |
-| 5 | Datele declarate se verifica | 18 | „Alte rate” = maximul dintre declarat si Biroul de Credit (simulat) | `assessment_done` | Bogdan | P0 |
+| 4 | Evaluare pe venit, cheltuieli, obligatii; fara date sensibile (art. 18(3)) sau social media (considerentul 55) | 18(3) | API accepta doar campuri din lista alba; test automat pica daca apare un camp interzis | `assessment_done` (hash-ul datelor, nu datele) | Bogdan | P0 |
+| 5 | Datele declarate se verifica (surse interne si externe) | 18(3) | Venit = min(declarat, cont bancar), cheltuieli = max(declarat, cont bancar) – Open Banking simulat, cu acord explicit; alte rate = max(declarat, Biroul de Credit simulat). Fara acord bancar → revizuire umana, nu aprobare automata | `consent_given` (bank_data), `assessment_done` (`income_verification`) | Bogdan | P0 |
 | 6 | Credit doar daca evaluarea e pozitiva; nu doar pe istoricul de credit | 18(6), 18(11) | Grad de indatorare max. 40% + rest dupa rate; prepaid fara istoric nu e penalizat | `assessment_done` | Bogdan | P0 |
 | 7 | Decizie automata: explicatie, interventie umana, contestare | 18(8) + GDPR 22 | Ecran 4 (motive + buton) + coada din back-office | `human_review_requested`, `human_review_resolved` | Ambii | P0 |
 | 8 | La respingere: informare imediata + consiliere, fara alt credit oferit | 18(9) | Ecran 4, starea „Respins” | `debt_advice_shown` | Ambii | P1 |
@@ -499,7 +513,7 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 
 ---
 
-## 15. Status (21.11, 11:30)
+## 15. Status (21.11, 12:15)
 
 | Ce | Stare |
 |---|---|
@@ -513,7 +527,8 @@ Ne da cifra reala pentru slide-ul „inainte / dupa”. Nu inventam numere.
 | ZERO4 (casti, 4 rate, 0%) | verificat pe server cap-coada (smoke 71/71); la retragere textul spune „fara dobanda” |
 | Aplicatia clientului (`web/`, David) | in lucru la David, inca nu e pe GitHub (10:45) |
 | Deploy Vercel + QR | urmeaza (il importa David cand merge login-ul pe API) |
-| Arhivare cereri demo | migratia `20261121091630 application_archive` aplicata; codul din back-office si `data/archive_demo.sql` scrise, de facut deploy + rulat arhivarea |
+| Arhivare cereri demo | migratia `20261121091630 application_archive` aplicata, PR merge-uit, arhivarea rulata |
+| Verificarea venitului (Open Banking simulat) | migratia `20261121094520 bank_verification` aplicata + date bancare pentru cei 63 de clienti; motor `engine-v2` (33/33), API si back-office scrise; de facut: PR + deploy + smoke; David: casuta 3 + blocul „Ce am verificat” |
 | Arhitectura | `docs/ARHITECTURA.md`: diagrame, toate rutele, starile cererii, exemplul Ana, jurnalul, securitatea |
 
 Detaliile tehnice, regulile de lucru si pasii urmatori exacti sunt in `PREDARE_CLAUDE.md` (in proiect si in `docs/`).

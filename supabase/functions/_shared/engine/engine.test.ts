@@ -86,27 +86,39 @@ test('Date: 31 ian. + 1 luna = 28/29 feb.', () => {
 
 // ---------- Accesibilitatea (cele 3 persone) ----------
 
+// Implicit: acord pentru datele bancare, iar banca confirma exact ce a declarat clientul (engine-v2)
+type AIn = Parameters<typeof assessAffordability>[0];
+const A = (i: Omit<AIn, 'bank_status' | 'bank_income_lei' | 'bank_expenses_lei'> & Partial<AIn>) =>
+  assessAffordability({ bank_status: 'used', bank_income_lei: i.net_income_lei, bank_expenses_lei: i.monthly_expenses_lei, ...i });
+
+
 const base = { other_installments_bureau_lei: 0, late_bills_12m: 0, history_status: 'used' as const };
 
-test('Ana -> aprobat, 3 motive, fara consiliere', () => {
-  const r = assessAffordability({ ...base, net_income_lei: 5200, monthly_expenses_lei: 2100,
+test('Ana -> aprobat, 4 motive (venit verificat), fara consiliere', () => {
+  const r = A({ ...base, net_income_lei: 5200, monthly_expenses_lei: 2100,
     other_installments_declared_lei: 300, other_installments_bureau_lei: 300, new_installment_lei: 106.52 });
   assert.equal(r.decision, 'approved');
-  assert.deepEqual(r.reasons.map((x) => x.code), ['DTI_OK', 'RESIDUAL_OK', 'BILLS_ON_TIME']);
+  assert.deepEqual(r.reasons.map((x) => x.code), ['INCOME_VERIFIED', 'DTI_OK', 'RESIDUAL_OK', 'BILLS_ON_TIME']);
   assert.equal(r.metrics.residual_lei, 2693.48);
-  assert.equal(r.reasons[0].text, 'Ratele tale ar fi 8% din venit, sub limita de 40%.');
+  assert.equal(r.reasons[1].text, 'Ratele tale ar fi 8% din venit, sub limita de 40%.');
+  assert.deepEqual(r.verification, {
+    bank_data_used: true, source: 'Open Banking (simulat)',
+    income: { declared_lei: 5200, verified_lei: 5200, used_lei: 5200 },
+    expenses: { declared_lei: 2100, verified_lei: 2100, used_lei: 2100 },
+    other_installments: { declared_lei: 300, bureau_lei: 300, used_lei: 300 },
+  });
   assert.equal(r.debt_advice, null);
 });
 
 test('Mihai -> revizuire umana pentru 2 facturi intarziate (nu respingere)', () => {
-  const r = assessAffordability({ ...base, net_income_lei: 3900, monthly_expenses_lei: 1800,
+  const r = A({ ...base, net_income_lei: 3900, monthly_expenses_lei: 1800,
     other_installments_declared_lei: 650, other_installments_bureau_lei: 650, new_installment_lei: 169.49, late_bills_12m: 2 });
   assert.equal(r.decision, 'manual_review');
   assert.equal(r.reasons[0].code, 'BILLS_LATE');
 });
 
 test('Ioana (prepaid) -> respinsa, nu ramane nimic; primeste consiliere; lipsa istoricului nu e minus', () => {
-  const r = assessAffordability({ net_income_lei: 2600, monthly_expenses_lei: 1700,
+  const r = A({ net_income_lei: 2600, monthly_expenses_lei: 1700,
     other_installments_declared_lei: 900, other_installments_bureau_lei: 900, new_installment_lei: 106.52,
     late_bills_12m: null, history_status: 'no_history' });
   assert.equal(r.decision, 'rejected');
@@ -116,7 +128,7 @@ test('Ioana (prepaid) -> respinsa, nu ramane nimic; primeste consiliere; lipsa i
 });
 
 test('Biroul de Credit: se foloseste valoarea mai mare si se explica', () => {
-  const r = assessAffordability({ ...base, net_income_lei: 5000, monthly_expenses_lei: 1500,
+  const r = A({ ...base, net_income_lei: 5000, monthly_expenses_lei: 1500,
     other_installments_declared_lei: 200, other_installments_bureau_lei: 700, new_installment_lei: 100 });
   assert.equal(r.metrics.other_installments_used_lei, 700);
   assert.ok(r.reasons.some((x) => x.code === 'BUREAU_HIGHER'));
@@ -124,28 +136,28 @@ test('Biroul de Credit: se foloseste valoarea mai mare si se explica', () => {
 
 test('Pragul de 40%: exact 40% trece, peste 40% e respins', () => {
   const p = { ...base, monthly_expenses_lei: 0, other_installments_declared_lei: 300 };
-  assert.notEqual(assessAffordability({ ...p, net_income_lei: 1000, new_installment_lei: 100 }).decision, 'rejected');
-  const r = assessAffordability({ ...p, net_income_lei: 1000, new_installment_lei: 100.01 });
+  assert.notEqual(A({ ...p, net_income_lei: 1000, new_installment_lei: 100 }).decision, 'rejected');
+  const r = A({ ...p, net_income_lei: 1000, new_installment_lei: 100.01 });
   assert.equal(r.decision, 'rejected');
   assert.equal(r.reasons[0].code, 'DTI_HIGH');
 });
 
 test('Pragul de 500 lei: sub 500 -> revizuire, 500 -> aprobat, sub 0 -> respins', () => {
   const p = { ...base, net_income_lei: 10000, other_installments_declared_lei: 0, new_installment_lei: 100 };
-  assert.equal(assessAffordability({ ...p, monthly_expenses_lei: 9400 }).decision, 'approved');     // ramane 500
-  assert.equal(assessAffordability({ ...p, monthly_expenses_lei: 9400.01 }).decision, 'manual_review');
-  assert.equal(assessAffordability({ ...p, monthly_expenses_lei: 9900.01 }).decision, 'rejected');
+  assert.equal(A({ ...p, monthly_expenses_lei: 9400 }).decision, 'approved');     // ramane 500
+  assert.equal(A({ ...p, monthly_expenses_lei: 9400.01 }).decision, 'manual_review');
+  assert.equal(A({ ...p, monthly_expenses_lei: 9900.01 }).decision, 'rejected');
 });
 
 test('Fara acord pentru istoric: intarzierile nu se folosesc', () => {
-  const r = assessAffordability({ net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_declared_lei: 300,
+  const r = A({ net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_declared_lei: 300,
     other_installments_bureau_lei: 300, new_installment_lei: 106.52, late_bills_12m: null, history_status: 'no_consent' });
   assert.equal(r.decision, 'approved');
   assert.ok(r.reasons.some((x) => x.code === 'HISTORY_NOT_USED'));
 });
 
 test('Venit 0 -> respins, fara impartire la 0', () => {
-  const r = assessAffordability({ ...base, net_income_lei: 0, monthly_expenses_lei: 0, other_installments_declared_lei: 0, new_installment_lei: 50 });
+  const r = A({ ...base, net_income_lei: 0, monthly_expenses_lei: 0, other_installments_declared_lei: 0, new_installment_lei: 50 });
   assert.equal(r.decision, 'rejected');
   assert.equal(r.metrics.dti_pct, null);
 });
@@ -213,4 +225,69 @@ test('Suma la retragere: credit + dobanda pe zilele folosite, returnare in 30 de
   assert.equal(zero.interest_lei, 0);
   assert.equal(zero.text, 'Returnezi suma primita, fara dobanda, in maximum 30 de zile.'); // nu pomeni dobanda la 0%
   assert.match(trei.text, /dobanda pentru 3 zile/);
+});
+
+// ---------- Verificarea venitului (Open Banking, simulat) – engine-v2 ----------
+
+const ana = { net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_declared_lei: 300,
+  other_installments_bureau_lei: 300, new_installment_lei: 106.52, late_bills_12m: 0, history_status: 'used' as const };
+
+test('Ana declara 9.000 lei, banca arata 5.200 -> se foloseste 5.200 si se explica', () => {
+  const r = A({ ...ana, net_income_lei: 9000, bank_income_lei: 5200, bank_expenses_lei: 2100 });
+  assert.equal(r.metrics.income_used_lei, 5200);
+  assert.equal(r.metrics.residual_lei, 2693.48);
+  assert.equal(r.reasons[0].code, 'INCOME_VERIFIED_LOWER');
+  assert.match(r.reasons[0].text, /5\.200 lei/);
+  assert.equal(r.verification.income.declared_lei, 9000);
+  assert.equal(r.verification.income.used_lei, 5200);
+});
+
+test('Ioana declara 9.000 lei (minte), banca arata 2.600 -> ramane respinsa', () => {
+  const r = A({ net_income_lei: 9000, monthly_expenses_lei: 1700, other_installments_declared_lei: 900,
+    other_installments_bureau_lei: 900, new_installment_lei: 106.52, late_bills_12m: null, history_status: 'no_history',
+    bank_income_lei: 2600, bank_expenses_lei: 1700 });
+  assert.equal(r.decision, 'rejected');
+  assert.equal(r.reasons[0].code, 'RESIDUAL_NEGATIVE');
+  assert.ok(r.reasons.some((x) => x.code === 'INCOME_VERIFIED_LOWER'));
+});
+
+test('Banca arata cheltuieli mai mari decat cele declarate -> se folosesc cele din banca', () => {
+  const r = A({ ...ana, monthly_expenses_lei: 1000, bank_expenses_lei: 2100 });
+  assert.equal(r.metrics.expenses_used_lei, 2100);
+  assert.ok(r.reasons.some((x) => x.code === 'EXPENSES_VERIFIED_HIGHER'));
+});
+
+test('Banca arata venit mai MARE decat cel declarat -> se foloseste cel declarat (prudent)', () => {
+  const r = A({ ...ana, bank_income_lei: 8000 });
+  assert.equal(r.metrics.income_used_lei, 5200);
+  assert.equal(r.reasons[0].code, 'INCOME_VERIFIED');
+});
+
+test('Fara acord pentru datele bancare -> revizuire umana, niciodata aprobare automata', () => {
+  const r = A({ ...ana, bank_status: 'no_consent', bank_income_lei: null, bank_expenses_lei: null });
+  assert.equal(r.decision, 'manual_review');
+  assert.equal(r.reasons[0].code, 'INCOME_NOT_VERIFIED');
+  assert.equal(r.verification.bank_data_used, false);
+  assert.equal(r.verification.source, null);
+  assert.equal(r.verification.income.verified_lei, null);
+  assert.equal(r.debt_advice, null);
+});
+
+test('Acord dat, dar fara date in banca -> revizuire umana (BANK_DATA_UNAVAILABLE)', () => {
+  const r = A({ ...ana, bank_status: 'unavailable', bank_income_lei: null, bank_expenses_lei: null });
+  assert.equal(r.decision, 'manual_review');
+  assert.equal(r.reasons[0].code, 'BANK_DATA_UNAVAILABLE');
+});
+
+test('Fara acord bancar, dar chiar si cifrele declarate nu ajung -> respins (respins bate revizuirea)', () => {
+  const r = A({ ...ana, monthly_expenses_lei: 5000, bank_status: 'no_consent', bank_income_lei: null, bank_expenses_lei: null });
+  assert.equal(r.decision, 'rejected');
+  assert.equal(r.reasons[0].code, 'RESIDUAL_NEGATIVE');
+  assert.equal(r.reasons[1].code, 'INCOME_NOT_VERIFIED');
+});
+
+test('Maximum 4 motive afisate', () => {
+  const r = A({ ...ana, net_income_lei: 9000, monthly_expenses_lei: 1000, other_installments_declared_lei: 0,
+    bank_income_lei: 5200, bank_expenses_lei: 2100 });
+  assert.ok(r.reasons.length <= 4);
 });

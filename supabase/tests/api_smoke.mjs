@@ -45,18 +45,21 @@ ok('/applications fara avertisment afisat -> 400', (await call(ana, 'POST', '/ap
 const app = await call(ana, 'POST', '/applications', { sku: 'PH-2', product_id: 'RATE', term_months: 24, shown: { ad_warning: true, personalised_label: true } });
 ok('/applications -> 201 draft', app.status === 201 && app.json?.status === 'draft', JSON.stringify(app.json));
 const id = app.json?.application_id;
-ok('/consents fara nota de informare -> 400', (await call(ana, 'POST', `/applications/${id}/consents`, { billing_history: true, privacy_notice_read: false })).status === 400);
-ok('/consents -> ok', (await call(ana, 'POST', `/applications/${id}/consents`, { billing_history: true, privacy_notice_read: true })).json?.ok === true);
+ok('/consents fara nota de informare -> 400', (await call(ana, 'POST', `/applications/${id}/consents`, { billing_history: true, bank_data: true, privacy_notice_read: false })).status === 400);
+ok('/consents fara bank_data -> 400 (camp obligatoriu)', (await call(ana, 'POST', `/applications/${id}/consents`, { billing_history: true, privacy_notice_read: true })).json?.error?.fields?.[0] === 'bank_data');
+ok('/consents -> ok', (await call(ana, 'POST', `/applications/${id}/consents`, { billing_history: true, bank_data: true, privacy_notice_read: true })).json?.ok === true);
 const forb = await call(ana, 'POST', `/applications/${id}/assessment`, { net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_lei: 300, health_status: 'x' });
 ok('camp interzis (health_status) -> 400 FORBIDDEN_FIELD', forb.json?.error?.code === 'FORBIDDEN_FIELD', JSON.stringify(forb.json));
-ok('Mihai NU vede cererea Anei -> 404', (await call(mihai, 'POST', `/applications/${id}/consents`, { billing_history: true, privacy_notice_read: true })).status === 404);
+ok('Mihai NU vede cererea Anei -> 404', (await call(mihai, 'POST', `/applications/${id}/consents`, { billing_history: true, bank_data: true, privacy_notice_read: true })).status === 404);
 const as = await call(ana, 'POST', `/applications/${id}/assessment`, { net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_lei: 300 });
 ok('/assessment Ana -> approved', as.json?.decision === 'approved', JSON.stringify(as.json));
+ok('Ana: venit verificat (Open Banking simulat) 5.200 = folosit', as.json?.verification?.bank_data_used === true && as.json?.verification?.source === 'Open Banking (simulat)' &&
+  as.json?.verification?.income?.verified_lei === 5200 && as.json?.verification?.income?.used_lei === 5200 && as.json?.reasons?.[0]?.code === 'INCOME_VERIFIED', JSON.stringify(as.json?.verification));
 ok('a doua evaluare -> 409', (await call(ana, 'POST', `/applications/${id}/assessment`, { net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_lei: 300 })).status === 409);
 
 console.log('Mihai -> revizuire umana:');
 const appM = await call(mihai, 'POST', '/applications', { sku: 'PH-3', product_id: 'RATE', term_months: 24, shown: { ad_warning: true, personalised_label: true } });
-await call(mihai, 'POST', `/applications/${appM.json?.application_id}/consents`, { billing_history: true, privacy_notice_read: true });
+await call(mihai, 'POST', `/applications/${appM.json?.application_id}/consents`, { billing_history: true, bank_data: true, privacy_notice_read: true });
 const asM = await call(mihai, 'POST', `/applications/${appM.json?.application_id}/assessment`, { net_income_lei: 3900, monthly_expenses_lei: 1800, other_installments_lei: 650 });
 ok('/assessment Mihai -> manual_review (BILLS_LATE)', asM.json?.decision === 'manual_review' && asM.json?.reasons?.[0]?.code === 'BILLS_LATE', JSON.stringify(asM.json));
 
@@ -122,7 +125,7 @@ console.log('Revizuire umana (client):');
 ok('Mihai, deja in revizuire -> 409 REVIEW_PENDING', (await call(mihai, 'POST', `/applications/${idM}/human-review`, {})).json?.error?.code === 'REVIEW_PENDING');
 const appI = await call(ioana, 'POST', '/applications', { sku: 'PH-2', product_id: 'RATE', term_months: 24, shown: { ad_warning: true } });
 const idI = appI.json?.application_id;
-await call(ioana, 'POST', `/applications/${idI}/consents`, { billing_history: false, privacy_notice_read: true });
+await call(ioana, 'POST', `/applications/${idI}/consents`, { billing_history: false, bank_data: true, privacy_notice_read: true });
 const asI = await call(ioana, 'POST', `/applications/${idI}/assessment`, { net_income_lei: 2600, monthly_expenses_lei: 1700, other_installments_lei: 900 });
 ok('Ioana -> rejected + consiliere', asI.json?.decision === 'rejected' && !!asI.json?.debt_advice, JSON.stringify(asI.json));
 ok('mesaj > 1000 caractere -> 400', (await call(ioana, 'POST', `/applications/${idI}/human-review`, { message: 'x'.repeat(1001) })).status === 400);
@@ -143,7 +146,7 @@ if (!OP_PASS) {
   console.log('Operator, back-office:');
   const op = await login('operator@demo.comb.ro', OP_PASS);
   ok('operatorul NU poate da acorduri in numele clientului -> 403',
-    (await call(op, 'POST', `/applications/${idI}/consents`, { billing_history: true, privacy_notice_read: true })).status === 403);
+    (await call(op, 'POST', `/applications/${idI}/consents`, { billing_history: true, bank_data: true, privacy_notice_read: true })).status === 403);
   const lg = await call(op, 'GET', `/backoffice/ledger?application_id=${id}`);
   const evs = (lg.json?.entries ?? []).map((e) => e.event);
   const expected = ['offer_requested', 'ad_warning_shown', 'personalised_offer_disclosed', 'consent_given', 'consent_given', 'assessment_done',
@@ -183,7 +186,7 @@ ok('ZERO4 pe telefon -> 400 PRODUCT_NOT_APPLICABLE', (await call(ana, 'POST', '/
 const az = await call(ana, 'POST', '/applications', { sku: 'AC-1', product_id: 'ZERO4', term_months: 4, shown: { ad_warning: true, personalised_label: true } });
 const idZ = az.json?.application_id;
 ok('/applications ZERO4 -> 201 draft', az.status === 201 && !!idZ, JSON.stringify(az.json));
-await call(ana, 'POST', `/applications/${idZ}/consents`, { billing_history: true, privacy_notice_read: true });
+await call(ana, 'POST', `/applications/${idZ}/consents`, { billing_history: true, bank_data: true, privacy_notice_read: true });
 const asZ = await call(ana, 'POST', `/applications/${idZ}/assessment`, { net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_lei: 300 });
 ok('evaluare ZERO4 -> approved', asZ.json?.decision === 'approved', JSON.stringify(asZ.json?.decision));
 const scZ = await call(ana, 'GET', `/applications/${idZ}/secci`);
@@ -196,6 +199,21 @@ await call(ana, 'POST', '/demo/time-travel', { agreement_id: sgZ.json?.agreement
 const wdZ = await call(ana, 'POST', `/agreements/${sgZ.json?.agreement_id}/withdraw`);
 ok('retragere ZERO4 ziua 3 -> 399 lei, dobanda 0, text fara dobanda', wdZ.json?.amount_to_return_lei === 399 && wdZ.json?.interest_lei === 0 &&
   wdZ.json?.text === 'Returnezi suma primita, fara dobanda, in maximum 30 de zile.', JSON.stringify(wdZ.json));
+
+console.log('Verificarea venitului (Open Banking, simulat):');
+const aV = await call(ana, 'POST', '/applications', { sku: 'PH-1', product_id: 'RATE', term_months: 12, shown: { ad_warning: true, personalised_label: true } });
+await call(ana, 'POST', `/applications/${aV.json?.application_id}/consents`, { billing_history: true, bank_data: true, privacy_notice_read: true });
+const asV = await call(ana, 'POST', `/applications/${aV.json?.application_id}/assessment`, { net_income_lei: 9000, monthly_expenses_lei: 2100, other_installments_lei: 300 });
+ok('Ana declara 9.000 -> se foloseste 5.200 din banca, motivul INCOME_VERIFIED_LOWER', asV.json?.verification?.income?.declared_lei === 9000 &&
+  asV.json?.verification?.income?.used_lei === 5200 && asV.json?.reasons?.some((x) => x.code === 'INCOME_VERIFIED_LOWER'), JSON.stringify(asV.json));
+const stV = await call(ana, 'GET', `/applications/${aV.json?.application_id}`);
+ok('GET /applications/:id -> decision.verification salvat', stV.json?.decision?.verification?.income?.used_lei === 5200 &&
+  stV.json?.decision?.verification?.income?.verified_lei === 5200, JSON.stringify(stV.json?.decision?.verification));
+const aN = await call(ana, 'POST', '/applications', { sku: 'PH-1', product_id: 'RATE', term_months: 12, shown: { ad_warning: true, personalised_label: true } });
+await call(ana, 'POST', `/applications/${aN.json?.application_id}/consents`, { billing_history: true, bank_data: false, privacy_notice_read: true });
+const asN = await call(ana, 'POST', `/applications/${aN.json?.application_id}/assessment`, { net_income_lei: 5200, monthly_expenses_lei: 2100, other_installments_lei: 300 });
+ok('fara acord bancar -> manual_review INCOME_NOT_VERIFIED (nu aprobare automata)', asN.json?.decision === 'manual_review' &&
+  asN.json?.reasons?.[0]?.code === 'INCOME_NOT_VERIFIED' && asN.json?.verification?.bank_data_used === false && asN.json?.verification?.income?.verified_lei === null, JSON.stringify(asN.json));
 
 console.log(`\nRezultat: ${pass} OK, ${fail} FAIL`);
 console.log(`Cererea Anei: ${id} | contract: ${agrId}`);

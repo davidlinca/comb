@@ -212,6 +212,8 @@ for (let idx = 0; idx < candidates.length; idx++) {
     net_income_lei: income, monthly_expenses_lei: expenses, other_installments_declared_lei: declaredFinal,
     other_installments_bureau_lei: c.bureau_lei, new_installment_lei: inst, late_bills_12m: late,
     history_status: historyStatus as 'used' | 'no_history' | 'no_consent',
+    // seed-ul istoric (engine-v1) nu avea Open Banking; aici banca confirma ce s-a declarat (vezi data/bank_insights.sql)
+    bank_income_lei: income, bank_expenses_lei: expenses, bank_status: 'used',
   });
   const inputs = { net_income_lei: income, monthly_expenses_lei: expenses, other_installments_lei: declaredFinal };
   t = plus(t, int(40, 120));

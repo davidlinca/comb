@@ -9,7 +9,7 @@ import { admin } from '../lib/supabase.ts';
 import { appendLedger } from '../lib/ledger.ts';
 import { nextStep } from '../lib/flow.ts';
 import {
-  assessAffordability, buildQuote, canonicalJson, countLateBills12m, DEBT_ADVICE, localDate, QuoteError, sha256Hex,
+  assessAffordability, BANK_SOURCE, buildQuote, canonicalJson, countLateBills12m, DEBT_ADVICE, localDate, QuoteError, sha256Hex,
   validateAssessmentInput,
 } from '../../_shared/engine/index.ts';
 
@@ -115,23 +115,27 @@ r.post('/applications', async (c) => {
 r.post('/applications/:id/consents', async (c) => {
   const { app } = await myApplication(c.get('db'), c.get('userId'), c.req.param('id'));
   const body = await readJson(c.req.raw);
-  onlyKeys(body, ['billing_history', 'privacy_notice_read']);
+  onlyKeys(body, ['billing_history', 'bank_data', 'privacy_notice_read']);
   if (body.privacy_notice_read !== true) {
     throw bad('PRIVACY_NOTICE_REQUIRED', 'Trebuie sa confirmi ca ai citit nota de informare.', ['privacy_notice_read']);
   }
   if (typeof body.billing_history !== 'boolean') throw bad('VALIDATION', 'Alege daca folosim istoricul facturilor.', ['billing_history']);
+  // bank_data: obligatoriu true/false, fara valoare implicita (decizie 21.11, 11:45)
+  if (typeof body.bank_data !== 'boolean') throw bad('VALIDATION', 'Alege daca putem citi datele din contul tau bancar.', ['bank_data']);
   if (app.status !== 'draft') throw conflict('ALREADY_ASSESSED', 'Cererea a fost deja evaluata.');
 
   const now = new Date().toISOString();
   const { error } = await admin.from('consents').upsert([
     { application_id: app.id, purpose: 'privacy_notice', granted: true, created_at: now },
     { application_id: app.id, purpose: 'billing_history', granted: body.billing_history, created_at: now },
+    { application_id: app.id, purpose: 'bank_data', granted: body.bank_data, created_at: now },
   ], { onConflict: 'application_id,purpose' });
   if (error) throw new Error(error.message);
 
   await appendLedger(app.id, [
     { event: 'consent_given', actor: 'customer', payload: { purpose: 'privacy_notice', notice_version: 'v1' } },
     ...(body.billing_history ? [{ event: 'consent_given', actor: 'customer' as const, payload: { purpose: 'billing_history', notice_version: 'v1' } }] : []),
+    ...(body.bank_data ? [{ event: 'consent_given', actor: 'customer' as const, payload: { purpose: 'bank_data', notice_version: 'v1' } }] : []),
   ]);
   return c.json({ ok: true });
 });
@@ -149,11 +153,17 @@ r.post('/applications/:id/assessment', async (c) => {
     throw bad('CONSENTS_MISSING', 'Mai intai confirma nota de informare.', ['consents']);
   }
   const billingConsent = consents.some((x) => x.purpose === 'billing_history' && x.granted);
+  const bankConsent = consents.some((x) => x.purpose === 'bank_data' && x.granted);
 
-  const [{ data: cust }, { data: bureau }] = await Promise.all([
+  const [{ data: cust }, { data: bureau }, { data: bank }] = await Promise.all([
     db.from('customers').select('segment').eq('id', app.customer_id).single(),
     db.from('credit_bureau_records').select('other_installments_lei').eq('customer_id', app.customer_id).maybeSingle(),
+    // Open Banking (simulat): citit DOAR cu acordul bank_data
+    bankConsent
+      ? db.from('bank_account_insights').select('net_income_lei, essential_expenses_lei').eq('customer_id', app.customer_id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+  const bankStatus: 'used' | 'no_consent' | 'unavailable' = !bankConsent ? 'no_consent' : bank ? 'used' : 'unavailable';
   const segment = cust?.segment as 'postpaid' | 'prepaid';
   const today = localDate(new Date());
 
@@ -173,7 +183,11 @@ r.post('/applications/:id/assessment', async (c) => {
     other_installments_declared_lei: inp.other_installments_lei,
     other_installments_bureau_lei: Number(bureau?.other_installments_lei ?? 0),
     new_installment_lei: app.installment_lei, late_bills_12m: late, history_status: historyStatus,
+    bank_income_lei: bank ? Number(bank.net_income_lei) : null,
+    bank_expenses_lei: bank ? Number(bank.essential_expenses_lei) : null,
+    bank_status: bankStatus,
   });
+  const vf = res.verification;
 
   const { error } = await admin.from('assessments').insert({
     application_id: app.id, net_income_lei: inp.net_income_lei, monthly_expenses_lei: inp.monthly_expenses_lei,
@@ -183,6 +197,8 @@ r.post('/applications/:id/assessment', async (c) => {
     late_bills_12m: late, billing_history_used: historyStatus === 'used', dti_pct: res.metrics.dti_pct,
     residual_lei: res.metrics.residual_lei, decision: res.decision, reasons: res.reasons, automated: true,
     engine_version: res.engine_version,
+    bank_data_used: vf.bank_data_used, income_verified_lei: vf.income.verified_lei, income_used_lei: vf.income.used_lei,
+    expenses_verified_lei: vf.expenses.verified_lei, expenses_used_lei: vf.expenses.used_lei,
   });
   if (error?.code === '23505') throw conflict('ALREADY_ASSESSED', 'Cererea a fost deja evaluata.');
   if (error) throw new Error(error.message);
@@ -195,6 +211,7 @@ r.post('/applications/:id/assessment', async (c) => {
     { event: 'assessment_done', actor: 'system', payload: {
       decision: res.decision, reason_codes: res.reasons.map((x) => x.code), engine_version: res.engine_version,
       inputs_sha256: await sha256Hex(canonicalJson(inp)),
+      income_verification: vf.bank_data_used ? 'open_banking_simulated' : bankStatus === 'no_consent' ? 'no_consent' : 'unavailable',
     } },
     ...(res.decision === 'rejected' ? [{ event: 'debt_advice_shown', actor: 'system' as const, payload: { version: 'v1' } }] : []),
     ...(res.decision === 'manual_review' ? [{ event: 'human_review_requested', actor: 'system' as const, payload: { requested_by: 'engine' } }] : []),
@@ -203,17 +220,36 @@ r.post('/applications/:id/assessment', async (c) => {
   return c.json({
     decision: res.decision, automated: true, reasons: res.reasons,
     metrics: { dti_pct: res.metrics.dti_pct, residual_lei: res.metrics.residual_lei, late_bills_12m: res.metrics.late_bills_12m },
+    verification: vf,
     human_review_available: true, debt_advice: res.debt_advice,
   });
 });
 
 // 6b. GET /applications/:id  (doar citire: starea cererii dupa refresh sau dupa revizuirea umana; decizie 21.11, 03:20)
+/** Verificarea salvata in `assessments` (evaluarile engine-v1 nu au cifre folosite: atunci folosit = declarat). */
+function verificationFromRow(a: Record<string, unknown>) {
+  const num = (v: unknown) => (v == null ? null : Number(v));
+  const used = a.bank_data_used === true;
+  return {
+    bank_data_used: used,
+    source: used ? BANK_SOURCE : null,
+    income: { declared_lei: Number(a.net_income_lei), verified_lei: num(a.income_verified_lei), used_lei: num(a.income_used_lei) ?? Number(a.net_income_lei) },
+    expenses: { declared_lei: Number(a.monthly_expenses_lei), verified_lei: num(a.expenses_verified_lei), used_lei: num(a.expenses_used_lei) ?? Number(a.monthly_expenses_lei) },
+    other_installments: {
+      declared_lei: Number(a.other_installments_declared_lei), bureau_lei: Number(a.other_installments_bureau_lei),
+      used_lei: Number(a.other_installments_used_lei),
+    },
+  };
+}
+
 r.get('/applications/:id', async (c) => {
   const db = c.get('db');
   const { app } = await myApplication(db, c.get('userId'), c.req.param('id'));
   const [cons, asmt, rev, secci, agr] = await Promise.all([
     db.from('consents').select('purpose, granted').eq('application_id', app.id),
-    db.from('assessments').select('decision, automated, reasons, dti_pct, residual_lei, late_bills_12m').eq('application_id', app.id).maybeSingle(),
+    db.from('assessments').select(`decision, automated, reasons, dti_pct, residual_lei, late_bills_12m,
+      net_income_lei, monthly_expenses_lei, other_installments_declared_lei, other_installments_bureau_lei, other_installments_used_lei,
+      bank_data_used, income_verified_lei, income_used_lei, expenses_verified_lei, expenses_used_lei`).eq('application_id', app.id).maybeSingle(),
     db.from('human_reviews').select('status, requested_by, requested_at, resolved_at').eq('application_id', app.id)
       .order('requested_at', { ascending: false }).limit(1).maybeSingle(),
     db.from('secci_documents').select('id').eq('application_id', app.id).limit(1),
@@ -236,6 +272,7 @@ r.get('/applications/:id', async (c) => {
     decision: a ? {
       decision: a.decision, automated: a.automated, reasons: a.reasons,
       metrics: { dti_pct: Number(a.dti_pct), residual_lei: Number(a.residual_lei), late_bills_12m: a.late_bills_12m },
+      verification: verificationFromRow(a),
     } : null,
     debt_advice: app.status === 'rejected' ? DEBT_ADVICE : null,
     review: rev.data ? {
