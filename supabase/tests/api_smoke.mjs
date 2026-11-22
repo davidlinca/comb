@@ -96,6 +96,10 @@ console.log('Ana, OTP + semnare:');
 ok('semnare fara cod cerut -> 400 OTP_NOT_REQUESTED', (await call(ana, 'POST', `/applications/${id}/sign`, { otp: '000000' })).json?.error?.code === 'OTP_NOT_REQUESTED');
 const otp = await call(ana, 'POST', `/applications/${id}/otp`);
 ok('/otp -> cod de 6 cifre, 300 s', /^\d{6}$/.test(otp.json?.otp_demo_code ?? '') && otp.json?.expires_in_s === 300, JSON.stringify(otp.json));
+const DELIV = ['sent', 'queued', 'failed', 'off', 'limit'];
+ok('/otp -> delivery { email, sms } (trimitere reala, 22.11)', DELIV.includes(otp.json?.delivery?.email) && DELIV.includes(otp.json?.delivery?.sms),
+  JSON.stringify(otp.json?.delivery));
+console.log(`   (cod trimis: email = ${otp.json?.delivery?.email}, sms = ${otp.json?.delivery?.sms} – verifica inboxul si telefonul)`);
 const wrong = otp.json?.otp_demo_code === '000000' ? '111111' : '000000';
 const bad1 = await call(ana, 'POST', `/applications/${id}/sign`, { otp: wrong });
 ok('cod gresit -> 400 OTP_INVALID (mai ai 4)', bad1.json?.error?.code === 'OTP_INVALID' && bad1.json?.error?.message.includes('4'), JSON.stringify(bad1.json));
