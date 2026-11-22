@@ -121,11 +121,17 @@ export type Agreement = {
 };
 export type WithdrawResult = { status: string; amount_to_return_lei: number; principal_lei: number; interest_lei: number; days_used: number; return_by: string; text: string };
 
+/** v0.7: `otp_demo_code` vine doar cât timp serverul îl arată pe ecran sau dacă n-a plecat pe niciun canal. */
+export type OtpResult = {
+  otp_demo_code?: string; expires_in_s: number;
+  delivery?: { email: 'sent' | 'failed' | 'off'; sms: 'queued' | 'failed' | 'off' | 'limit' };
+};
+
 export const api2 = {
   secci: (id: string) => request<Secci>('GET', `/applications/${id}/secci`),
   secciViewed: (id: string, b: { time_on_screen_ms: number; details_opened: boolean }) => request<{ ok: true }>('POST', `/applications/${id}/secci/viewed`, b),
   secciEmail: (id: string) => request<{ ok: true; sent_at: string; channel: string }>('POST', `/applications/${id}/secci/email`),
-  otp: (id: string) => request<{ otp_demo_code: string; expires_in_s: number }>('POST', `/applications/${id}/otp`),
+  otp: (id: string) => request<OtpResult>('POST', `/applications/${id}/otp`),
   sign: (id: string, otp: string) => request<SignResult>('POST', `/applications/${id}/sign`, { otp }),
   agreement: (aid: string) => request<Agreement>('GET', `/agreements/${aid}`),
   withdraw: (aid: string) => request<WithdrawResult>('POST', `/agreements/${aid}/withdraw`),

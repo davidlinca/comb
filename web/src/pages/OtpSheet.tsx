@@ -1,5 +1,6 @@
-// Semnarea cu codul din SMS (simulat: codul demo apare pe ecran și se poate completa cu un tap).
-import { useEffect, useRef, useState } from 'react';
+// Semnarea cu codul primit (API v0.7: codul pleacă real pe email/SMS). Codul nu mai apare pe ecran;
+// îl arătăm doar dacă nu a plecat pe niciun canal, ca semnarea să nu rămână blocată.
+import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
 import { useLoaderData, useNavigate, useOutletContext } from 'react-router-dom';
 import { api, api2, ApiError } from '../lib/api';
 import { lei } from '../lib/format';
@@ -19,7 +20,7 @@ export default function OtpSheet() {
   const nav = useNavigate();
   const back = useStepBack(`/a/${id}/confirma`);
   const [code, setCode] = useState('');
-  const [demoCode, setDemoCode] = useState<string | null>(null);
+  const [fallbackCode, setFallbackCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -37,7 +38,8 @@ export default function OtpSheet() {
     setError(null);
     try {
       const r = await api2.otp(id);
-      setDemoCode(r.otp_demo_code); setCode(''); setCooldown(RESEND_S);
+      const delivered = r.delivery?.email === 'sent' || r.delivery?.sms === 'queued';
+      setFallbackCode(delivered ? null : r.otp_demo_code ?? null); setCode(''); setCooldown(RESEND_S);
       input.current?.focus({ preventScroll: true });
     } catch (e) {
       if (e instanceof ApiError && e.code === 'ALREADY_SIGNED') { await goToAgreement(); return; }
@@ -75,12 +77,13 @@ export default function OtpSheet() {
     }
   }
 
-  /** Completează codul demo cifră cu cifră (doar pentru prezentare). */
-  function fillDemo() {
-    if (!demoCode) return;
-    setError(null); setCode('');
-    demoCode.split('').forEach((_, i) => setTimeout(() => setCode(demoCode.slice(0, i + 1)), 70 * (i + 1)));
-    input.current?.focus({ preventScroll: true });
+  /** Lipirea întregului mesaj („…codul tău de semnare este 482913. Expiră în 5 minute…”) păstrează doar codul. */
+  function onPaste(e: ClipboardEvent<HTMLInputElement>) {
+    const text = e.clipboardData.getData('text');
+    const found = text.match(/\b\d{6}\b/)?.[0] ?? text.replace(/\D/g, '').slice(0, LEN);
+    if (!found) return;
+    e.preventDefault();
+    setCode(found); setError(null);
   }
 
   const active = Math.min(code.length, LEN - 1);
@@ -102,9 +105,10 @@ export default function OtpSheet() {
         <div className="flex flex-col gap-2.5">
           <div className="relative">
             <input
-              ref={input} id="otp" value={code} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={LEN}
+              ref={input} id="otp" value={code} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*"
               aria-label="Codul de 6 cifre din SMS" aria-invalid={!!error || undefined} aria-describedby={error ? 'otp-err' : 'otp-help'}
               onChange={(e) => { setCode(e.target.value.replace(/\D/g, '').slice(0, LEN)); setError(null); }}
+              onPaste={onPaste}
               onKeyDown={(e) => { if (e.key === 'Enter') void sign(); }}
               onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
               className="absolute inset-0 z-10 h-full w-full cursor-text opacity-0"
@@ -134,13 +138,12 @@ export default function OtpSheet() {
           {cooldown > 0
             ? <span className="tabular text-[14px] text-muted" aria-live="off">Retrimite codul în 0:{String(cooldown).padStart(2, '0')}</span>
             : <ArrowLink onClick={requestCode}>Retrimite codul</ArrowLink>}
-          {demoCode && (
-            <button type="button" onClick={fillDemo} aria-label={`Completează codul demo ${demoCode.split('').join(' ')}`}
-              className="min-h-9 rounded-lg bg-brand-soft px-2.5 text-[13px] font-semibold text-ink transition-transform active:scale-95">
-              Demo: <span className="tabular tracking-[0.12em]">{demoCode}</span>
-            </button>
-          )}
         </div>
+        {fallbackCode && (
+          <p role="status" className="rounded-xl bg-brand-soft px-3 py-2.5 text-[13.5px] leading-snug text-ink animate-fade-in">
+            Nu am putut trimite codul acum. Folosește codul <span className="tabular font-semibold tracking-[0.12em]">{fallbackCode}</span>.
+          </p>
+        )}
       </SheetBody>
       <SheetFoot className="flex flex-col gap-3">
         <p className="text-center text-[12.5px] leading-snug text-muted">
