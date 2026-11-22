@@ -9,6 +9,7 @@ import { bad, conflict, onlyKeys, readJson, readJsonOptional, tooMany, unavailab
 import { type ApplicationRow, catalog, myApplication, savedSecci, type SecciRow } from '../lib/data.ts';
 import { admin } from '../lib/supabase.ts';
 import { appendLedger } from '../lib/ledger.ts';
+import { deliveredChannels, type Delivery, sendOtpEmail, sendOtpSms, showOnScreen, smsConfigured, smsDailyCap } from '../lib/notify.ts';
 import {
   cleanMessage, isOtpFormat, isReviewable, newOtpCode, OPERATOR_NAME, OTP_MAX_ATTEMPTS, OTP_MAX_PER_WINDOW, OTP_TTL_S,
   OTP_WINDOW_MS, otpHash, otpState, REVIEW_ETA_TEXT, safeEqual, sameKeyFigures,
@@ -187,10 +188,31 @@ r.post('/applications/:id/otp', async (c) => {
   });
   if (error) throw new Error(error.message);
 
-  await appendLedger(app.id, [{ event: 'otp_sent', actor: 'system', payload: { expires_in_s: OTP_TTL_S, channel: 'pe ecran (simulat)' } }]);
-  // Simulare: codul apare pe ecran. In productie ar pleca prin SMS si NU ar fi in raspuns.
-  return c.json({ otp_demo_code: code, expires_in_s: OTP_TTL_S });
+  // Trimitere reala (decis 22.11): email + SMS in paralel, catre echipa; functiile nu arunca, un canal picat nu blocheaza.
+  const smsAllowed = smsConfigured() ? (await smsSentLast24h()) < smsDailyCap() : true; // nefolosit => sendOtpSms da 'off'
+  const [email, sms] = await Promise.all([
+    sendOtpEmail(code),
+    smsAllowed ? sendOtpSms(code) : Promise.resolve<Delivery>('limit'),
+  ]);
+  // Codul ramane pe ecran (demo: juriul intra ca Ana si nu primeste SMS-ul). Daca n-a plecat pe niciun canal, il aratam oricum.
+  const onScreen = showOnScreen() || (email !== 'sent' && sms !== 'queued');
+  await appendLedger(app.id, [{
+    event: 'otp_sent', actor: 'system', payload: { expires_in_s: OTP_TTL_S, channels: deliveredChannels(email, sms, onScreen) },
+  }]);
+  return c.json({ ...(onScreen ? { otp_demo_code: code } : {}), expires_in_s: OTP_TTL_S, delivery: { email, sms } });
 });
+
+/** SMS-uri trimise in ultimele 24 de ore, pe toate cererile (din jurnal: otp_sent cu canalul „sms”). */
+async function smsSentLast24h(): Promise<number> {
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { count, error } = await admin.from('ledger_entries').select('id', { count: 'exact', head: true })
+    .eq('event', 'otp_sent').gte('occurred_at', since).contains('payload', { channels: ['sms'] });
+  if (error) {
+    console.error('[api] numararea SMS-urilor a esuat');
+    return Number.MAX_SAFE_INTEGER; // in caz de dubiu, nu trimitem SMS
+  }
+  return count ?? 0;
+}
 
 // 11. POST /applications/:id/sign  body: { otp }
 r.post('/applications/:id/sign', async (c) => {
