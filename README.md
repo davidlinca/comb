@@ -1,102 +1,112 @@
-# Comb – Installments, Built In
+# Comb – phone instalments, built for the new EU credit rules
 
-**An embedded phone-financing module for telcos, built on the rules of the EU Consumer Credit Directive 2023/2225 (CCD2), with tamper-evident proof for every step.**
+Comb is a ready-made instalment flow that a mobile operator puts in its own app. It lets the operator keep selling phones in instalments under the new EU Consumer Credit Directive (2023/2225, "CCD2"), and keeps proof of every step.
 
-Hackathon project (November 2026), *Telco Embedded Financing* challenge (Neofin). The customer app is in Romanian (the product targets Romanian customers); the documentation in `docs/` is in Romanian too.
+Built in 48 hours at the BANK/RUPT hackathon (Cluj-Napoca, November 2026), *Telco Embedded Financing* challenge.
 
-**Live demo:** https://comb-sigma.vercel.app. Log in with one click as Ana, Mihai or Ioana. The operator back-office account is not public.
+**Live demo:** https://comb-sigma.vercel.app — log in with one tap as Ana, Mihai or Ioana. The app is in Romanian; this README is in English, the docs in `docs/` are in Romanian.
 
-> All brands are fictional: *Telvia* (operator) and *Credis IFN* (lender). The credit bureau, the bank account (Open Banking), the lender, email/SMS and the passing of time are **simulated**. This is a prototype, not legal advice.
+> Prototype, not legal advice. The brands are fictional (*Telvia* = operator, *Credis IFN* = lender). The credit bureau, the bank data (Open Banking) and the lender are simulated.
 
 ---
 
-## The problem
+## Why it matters, and for whom
 
-Telcos already sell phones "in installments on the bill". CCD2 applies in the EU from 20 November 2026, and once Romania transposes it, these installments become consumer credit. From then on the operator must check affordability, explain the total cost clearly, avoid pressure selling, give a 14-day right of withdrawal, and be able to **prove** all of it.
+From 20 November 2026, an instalment plan longer than 50 days counts as consumer credit, even at 0% interest. Operators already sell phones "in instalments on the bill", so once Romania adopts the law, those plans must follow credit rules.
 
-## What the app does
+| Who | Their problem | What Comb gives them |
+|---|---|---|
+| **Customer** (e.g. Ana) | Sees "106 lei a month", not the 2,556 lei total | The full cost before any choice, an affordability check with reasons, 14 days to withdraw, options if she misses a payment |
+| **Operator** | Its phone plans become credit and must follow CCD2 | A ready-made flow inside its app, plus proof of every step for the regulator |
+| **Lender** (bank or non-bank lender) | Needs customers assessed properly, with evidence | Each customer already checked, with a verifiable log |
 
-| Step | What the customer sees | CCD2 | Proof in the ledger |
-|---|---|---|---|
-| 1. Offer on request | Installments only after tapping "Pay in installments"; nothing pre-ticked; "Borrowing money costs money" warning; personalised-offer label | art. 8, 13, 14–15, 17 | `offer_requested`, `ad_warning_shown`, `personalised_offer_disclosed` |
-| 2. Affordability check | Separate, unticked consents. Declared income, expenses and other installments are **verified**: income = min(declared, bank); expenses = max(declared, bank); other installments = max(declared, credit bureau, installments seen in the bank account, e.g. BNPL) | art. 18(3), 18(6), 18(11) | `consent_given`, `assessment_done` (hash of the inputs, not the data) |
-| 3. Explained decision | Approved / human review / rejected, with 2–4 plain-language reasons and "what we verified". A human review can be requested at any time. Rejection: debt-advice referral, no other credit offered | art. 18(8), 18(9) | `human_review_requested`, `debt_advice_shown` |
-| 4. One-screen contract (SECCI) | Monthly payment, total payable, cost of credit, APR, 14-day withdrawal; full form on demand; "send by email" | art. 10, Annex I | `secci_shown`, `secci_viewed`, `secci_emailed` |
-| 5. OTP signing | 6-digit code (shown on screen in the demo) | – | `otp_sent`, `agreement_signed` |
-| 6. After signing | Exact withdrawal deadline, reminder on days 1–7, one-tap withdrawal with the amount to return | art. 10, 26 | `withdrawal_reminder_sent`, `withdrawn` |
-| Back-office | Hash-chained ledger with a "Ledger verified" seal; human-review queue (approve / reject + note) | art. 18(8) | `human_review_resolved` |
+**Comb does not lend money.** The licensed lender pays for the phone and owns the credit; the operator offers it in its app; Comb is the software.
 
-Demo personas: **Ana** is approved (phone, 24 × 106.52 lei, APR 15.96%; also 0% headphones in 4 installments). **Mihai** goes to human review (2 late bills, plus 100 lei of BNPL seen only in his bank account). **Ioana** is rejected: nothing would be left after the installments, so she gets debt advice and no other credit is offered.
+## The customer flow
+
+| Step | What happens | CCD2 |
+|---|---|---|
+| 1. Offer | Instalments only on request; total cost shown before any choice; "Borrowing money costs money" warning | art. 8, 13, 17 |
+| 2. Budget check | Income, expenses, other instalments; bank data only with consent. We use the **lower** income and the **higher** expenses of declared vs. verified | art. 18 |
+| 3. Decision | Approved, human review or rejected, with plain-language reasons; a person can review on request | art. 18(8), 18(9) |
+| 4. Key terms | Total, monthly payment, APR, 14-day withdrawal on one screen; full SECCI form one tap away | art. 10 |
+| 5. Signing | Deliberate swipe + one-time code sent by email (SMS optional) | – |
+| 6. After signing | Withdrawal deadline and reminder; on a missed payment: defer, reschedule or talk to a person, no fees | art. 26, 35 |
+| Back-office | Human-review queue and the ledger with a "verified" seal | – |
+
+Every step writes an event to the **ledger**, tagged with its CCD2 article. 13 CCD2 requirements are covered in total (see `docs/ccd2_checklist_securitate.md`).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  U[Customer phone<br/>React + Vite + Tailwind<br/>Vercel] -- "apikey + user JWT" --> API
-  O[Operator desktop<br/>back-office] -- "operator JWT" --> API
-  U -. login .-> AUTH[Supabase Auth]
-  O -. login .-> AUTH
-  subgraph Supabase [Supabase, eu-central-1]
-    API[Edge Function api<br/>Hono on Deno<br/>engine: APR, affordability, SECCI, withdrawal]
-    DB[(Postgres<br/>RLS on all tables<br/>append-only hash-chained ledger)]
-    API -- "reads with user token (RLS)<br/>writes with secret key after ownership check" --> DB
+  C[Customer app<br/>React + Vite<br/>on Vercel] -->|user token| API
+  B[Operator back-office] -->|operator token| API
+  subgraph Supabase
+    API[API<br/>Edge Function on Deno]
+    E[Decision engine<br/>APR, affordability, SECCI]
+    DB[(Postgres<br/>row-level security<br/>append-only ledger)]
+    API --> E
+    API --> DB
   end
+  API -->|signing code| M[Email / SMS]
 ```
 
-- **Engine** (`supabase/functions/_shared/engine/`): pure TypeScript with no I/O. It computes APR per CCD2 Annex I, the schedule (rounded to the ban, last installment adjusted), affordability (DTI ≤ 40%, residual income, late bills), withdrawal amounts and the SECCI. The same tests run in Node and Deno.
-- **API** (`supabase/functions/api/`): 18 routes. Strict allow-list validation (an unknown or forbidden field returns 400). Stable error codes. Every customer step is appended to the ledger.
-- **Ledger:** a `BEFORE INSERT` trigger sets the sequence number, the previous hash and a SHA-256 over the entry. `UPDATE`/`DELETE`/`TRUNCATE` are blocked for everyone, including the secret key. `ledger_verify()` recomputes the chain.
+- **Customer app** (`web/`): React, Vite, TypeScript, Tailwind. Talks only to the API; it never reads or writes tables directly.
+- **API** (`supabase/functions/api/`): one Edge Function. Checks the token on every call, accepts only known fields, writes every step to the ledger.
+- **Decision engine** (`supabase/functions/_shared/engine/`): pure TypeScript, no I/O. APR by the directive's formula, payment schedule, affordability rules (debt-to-income ≤ 40%), withdrawal amounts, SECCI.
+- **Ledger**: each entry stores the SHA-256 hash of the previous one. Updates and deletes are blocked for everyone, including the server key. `ledger_verify()` recomputes the chain and finds the first broken entry.
 
-## Security
+## Security in short
 
-- RLS on every table. `anon` has no access; `authenticated` can only `SELECT` its own rows. All writes go through the API.
-- The operator role comes from `app_metadata` (server-set only). Customer routes accept only the owner of the application; the operator works only through `/backoffice/*`.
-- The publishable key is used only in the `apikey` header. The secret key, `OTP_PEPPER` and `ALLOWED_ORIGINS` live only in the function environment. CORS allows only the Vercel domain and localhost.
-- OTPs are stored only as a peppered hash: 5-minute expiry, 5 attempts, at most 3 codes per 10 minutes.
-- No personal data in clear in the ledger or in logs: codes, IDs, amounts and input hashes only.
+- Row-level security on every table; the browser only reads its own rows.
+- Only the publishable key is in the front end; secrets live in the server environment.
+- One-time codes are stored only as hashes: 5-minute expiry, 5 attempts, 3 codes per 10 minutes.
+- No personal data in clear in the ledger or in logs.
 
-## Repository layout
+## Real vs. simulated
 
-```
-web/                     customer app (React) + src/backoffice/ (operator view)
-supabase/migrations/     schema, RLS, ledger, archive, bank verification
-supabase/functions/api/  Edge Function (routes, auth, ledger helper)
-supabase/functions/_shared/engine/  pure business rules + tests
-supabase/tests/          PGlite DB tests + end-to-end smoke test against the live API
-data/                    synthetic demo data (63 customers) + demo archive script
-docs/                    architecture, decisions, CCD2 checklist (Romanian)
-```
+| Real | Simulated |
+|---|---|
+| Login, API, database, decision engine, APR, contract, withdrawal, missed-payment options, ledger, back-office, signing code by email | Credit bureau, bank data (Open Banking), the lender, time jumps ("day 35") |
 
-## Run and test
+All customers are synthetic.
+
+## Run it
 
 ```bash
-# web app
-cd web && cp .env.example .env.local   # add the publishable key
+# customer app
+cd web && cp .env.example .env.local   # add the Supabase publishable key
 npm install && npm run dev             # http://localhost:5173
 
-# engine and flow rules (Node 22; same files run with `deno test`)
+# engine and flow tests (Node 22)
 node --test supabase/functions/_shared/engine/engine.test.ts
 node --test supabase/functions/api/lib/flow.test.ts
 
-# database (Postgres in-process via PGlite, no Docker)
-cd supabase/tests && npm install
-npm run test:schema && npm run test:seed && npm run test:archive && npm run test:bank && npm run test:bankinst
+# database tests (Postgres in-process via PGlite, no Docker)
+cd supabase/tests && npm install && npm run test:schema
 
-# end-to-end against the deployed API (creates demo applications)
+# end-to-end against the deployed API
 node supabase/tests/api_smoke.mjs
 ```
 
-Last run (21 Nov 2026): engine 38/38, flow rules 13/13, live smoke test 79/79.
+## Repository
 
-## Documentation (Romanian)
+```
+web/                               customer app + operator back-office
+supabase/functions/api/            API (routes, auth, ledger, notifications)
+supabase/functions/_shared/engine/ business rules + tests
+supabase/migrations/               schema, security, ledger
+supabase/tests/                    database and end-to-end tests
+data/                              synthetic demo data and demo reset script
+docs/                              architecture, decisions, CCD2 checklist (Romanian)
+```
 
-- [`docs/ARHITECTURA.md`](docs/ARHITECTURA.md): diagrams, all routes, application states, the Ana walkthrough, the ledger, security layers, what is real vs simulated
-- [`docs/DECIZII_HACKATHON.md`](docs/DECIZII_HACKATHON.md): product decisions, decision rules, API contract, CCD2 checklist
-- [`docs/ccd2_checklist_securitate.md`](docs/ccd2_checklist_securitate.md): CCD2 and security checklist
+More detail: [`docs/ARHITECTURA.md`](docs/ARHITECTURA.md) (architecture, all routes) · [`docs/DECIZII_HACKATHON.md`](docs/DECIZII_HACKATHON.md) (decisions, API contract).
 
-## Team
+## Team — Bee2Bee
 
-- **Bogdan Mare**: database, API, decision engine, ledger, security, deployment, back-office
-- **David Linca**: UX/UI, customer app, user testing, pitch
+- **David Linca** — product, UX/UI, customer app, pitch
+- **Bogdan Mare** — database, API, decision engine, ledger, security, back-office
 
-Master's students at FSEGA, Babeș-Bolyai University, Cluj-Napoca.
+Master's students in E-Business at FSEGA, Babeș-Bolyai University, Cluj-Napoca.
